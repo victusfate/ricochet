@@ -1,24 +1,7 @@
 import type { InteractionEvent } from './types';
+import { ACTION_COLUMN, scoreDelta } from './scoring';
 
 const SQLITE_RETENTION_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
-
-// Score contribution of each action type
-const ACTION_SCORE: Record<string, number> = {
-  read:     1,
-  upvote:   3,
-  save:     2,
-  seen:     0.1,
-  downvote: -2,
-};
-
-// Map action → count column name in article_scores
-const ACTION_COLUMN: Record<string, string> = {
-  read:     'reads',
-  upvote:   'upvotes',
-  downvote: 'downvotes',
-  save:     'saves',
-  seen:     'seens',
-};
 
 export class RecDO implements DurableObject {
   constructor(private state: DurableObjectState, private _env: Env) {
@@ -84,7 +67,7 @@ export class RecDO implements DurableObject {
     for (const event of events) {
       const col = ACTION_COLUMN[event.action];
       if (!col) continue;
-      const scoreDelta = ACTION_SCORE[event.action] ?? 0;
+      const delta = scoreDelta(event.action);
 
       // Upsert interaction — PRIMARY KEY (user_id, article_id, action) prevents double-counting
       this.state.storage.sql.exec(
@@ -106,7 +89,7 @@ export class RecDO implements DurableObject {
            score      = score + ?,
            ${col}     = ${col} + 1,
            updated_at = ?`,
-        event.articleId, scoreDelta, now, scoreDelta, now,
+        event.articleId, delta, now, delta, now,
       );
     }
   }
