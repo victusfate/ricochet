@@ -1,6 +1,7 @@
 import { RecDO } from './RecDO';
 export { RecDO };
-import type { InteractionEvent } from './types';
+import type { RecResponse } from './types';
+import { isValidEvent } from './validation';
 
 const RATE_LIMIT_INTERACTIONS_MAX = 60;
 const RATE_LIMIT_RECS_MAX = 30;
@@ -102,23 +103,9 @@ function checkRateLimit(
   return { limited: false };
 }
 
-const VALID_ACTIONS = new Set(['read', 'upvote', 'downvote', 'save', 'seen']);
 const MAX_BATCH_SIZE = 200;
 const MAX_LIMIT = 200;
 const DEFAULT_LIMIT = 50;
-
-function isValidEvent(e: unknown): e is InteractionEvent {
-  if (typeof e !== 'object' || e === null) return false;
-  const ev = e as Record<string, unknown>;
-  return (
-    typeof ev.userId === 'string' && ev.userId.length > 0 &&
-    typeof ev.articleId === 'string' && ev.articleId.length > 0 &&
-    typeof ev.sourceId === 'string' && ev.sourceId.length > 0 &&
-    Array.isArray(ev.topics) && ev.topics.length > 0 &&
-    typeof ev.action === 'string' && VALID_ACTIONS.has(ev.action) &&
-    typeof ev.ts === 'number'
-  );
-}
 
 function getRecDOStub(env: Env): DurableObjectStub {
   const id = env.REC_DO.idFromName('global');
@@ -198,7 +185,7 @@ export default {
       const doRes = await stub.fetch(
         new Request(`http://do-internal/recs/${encodeURIComponent(userId)}?limit=${limit}`),
       );
-      const recBody = await doRes.json() as { articleIds: string[]; generatedAt: number };
+      const recBody = await doRes.json() as RecResponse;
       return json(recBody, request, env);
     }
 
