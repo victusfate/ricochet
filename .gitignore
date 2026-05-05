@@ -1,0 +1,14 @@
+# node_modules
+node_modules/
+
+# wrangler output
+.wrangler/
+dist/
+
+# environment files
+.dev.vars
+.env
+
+# OS / editor
+.DS_Store
+*.swp
