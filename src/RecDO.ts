@@ -1,6 +1,5 @@
 import type { InteractionEvent } from './types';
 import {
-  ACTION_COLUMN, scoreDelta,
   ACTION_RATING, DEFAULT_MF_PARAMS, newFactorRow, zeroFactorRow,
   mfLearnOne, mfPredict,
 } from './scoring';
@@ -34,18 +33,6 @@ export class RecDO implements DurableObject {
         topics     TEXT NOT NULL,
         ts         INTEGER NOT NULL,
         PRIMARY KEY (user_id, article_id, action)
-      )
-    `);
-    this.state.storage.sql.exec(`
-      CREATE TABLE IF NOT EXISTS article_scores (
-        article_id TEXT PRIMARY KEY,
-        score      REAL    NOT NULL DEFAULT 0,
-        reads      INTEGER NOT NULL DEFAULT 0,
-        upvotes    INTEGER NOT NULL DEFAULT 0,
-        downvotes  INTEGER NOT NULL DEFAULT 0,
-        saves      INTEGER NOT NULL DEFAULT 0,
-        seens      INTEGER NOT NULL DEFAULT 0,
-        updated_at INTEGER NOT NULL
       )
     `);
     this.state.storage.sql.exec(`
@@ -287,36 +274,6 @@ export class RecDO implements DurableObject {
       .map(r => ({ id: r.article_id, sc: mfPredict(globalMean, uFactor, dbRowToFactorRow(r)) }))
       .sort((a, b) => b.sc - a.sc)
       .map(r => r.id);
-  }
-
-  // ── Legacy (retained until S6) ────────────────────────────────────────────
-
-  ingestEvents(events: InteractionEvent[]): void {
-    const now = Date.now();
-    for (const event of events) {
-      const col = ACTION_COLUMN[event.action];
-      if (!col) continue;
-      const delta = scoreDelta(event.action);
-      this.state.storage.sql.exec(
-        `INSERT INTO interactions (user_id, article_id, source_id, action, topics, ts)
-         VALUES (?, ?, ?, ?, ?, ?)
-         ON CONFLICT(user_id, article_id, action) DO UPDATE SET
-           source_id = excluded.source_id,
-           topics    = excluded.topics,
-           ts        = excluded.ts`,
-        event.userId, event.articleId, event.sourceId,
-        event.action, JSON.stringify(event.topics), event.ts,
-      );
-      this.state.storage.sql.exec(
-        `INSERT INTO article_scores (article_id, score, ${col}, updated_at)
-         VALUES (?, ?, 1, ?)
-         ON CONFLICT(article_id) DO UPDATE SET
-           score      = score + ?,
-           ${col}     = ${col} + 1,
-           updated_at = ?`,
-        event.articleId, delta, now, delta, now,
-      );
-    }
   }
 
   prune(cutoff = Date.now() - SQLITE_RETENTION_MS): void {

@@ -1,27 +1,5 @@
 import type { Action } from './types';
 
-// ─── Legacy popularity scoring (retained until S6 cleanup) ───────────────────
-
-export const ACTION_SCORE: Record<Action, number> = {
-  read:     1,
-  upvote:   3,
-  save:     2,
-  seen:     0.1,
-  downvote: -2,
-};
-
-export const ACTION_COLUMN: Record<Action, string> = {
-  read:     'reads',
-  upvote:   'upvotes',
-  downvote: 'downvotes',
-  save:     'saves',
-  seen:     'seens',
-};
-
-export function scoreDelta(action: Action): number {
-  return ACTION_SCORE[action] ?? 0;
-}
-
 // ─── BiasedMF ────────────────────────────────────────────────────────────────
 
 export const ACTION_RATING: Record<Action, number> = {

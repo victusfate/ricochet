@@ -15,13 +15,16 @@ This repo inherits conventions from
 
 | Path | What it is |
 |---|---|
-| `src/index.ts` | Worker entry — routing, CORS, rate limiting, scheduled handler |
-| `src/types.ts` | Shared types: `Topic`, `InteractionEvent`, `RecResponse` |
-| `src/RecDO.ts` | Global Durable Object — interaction storage, popularity scoring, recommendations |
+| `src/index.ts` | Worker entry — routing, CORS, rate limiting, KV cache, scheduled handler |
+| `src/types.ts` | Shared types: `Topic`, `Action`, `InteractionEvent`, `RecResponse` |
+| `src/validation.ts` | `isValidEvent` — schema guard for incoming interaction events |
+| `src/scoring.ts` | Pure BiasedMF functions: `ACTION_RATING`, `mfPredict`, `mfLearnOne`, factor helpers |
+| `src/RecDO.ts` | Global Durable Object — online MF learning, candidate scoring, prune |
 | `src/worker.test.ts` | HTTP endpoint tests (Vitest + cloudflare pool) |
 | `src/RecDO.test.ts` | Durable Object unit / integration tests |
+| `src/scoring.test.ts` | Pure-function unit tests for BiasedMF math (no CF dependencies) |
 | `wrangler.jsonc` | Worker config — KV binding `REC_STORE`, DO binding `REC_DO` |
-| `docs/edge-recommendations/` | Design → PRD → Plan → TDD log |
+| `docs/biased-mf-recs/` | PRD → Plan → TDD log for BiasedMF recommendation feature |
 
 ---
 
