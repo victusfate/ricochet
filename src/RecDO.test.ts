@@ -190,3 +190,45 @@ describe('S4 — prune old interactions', () => {
     expect(recs.articleIds).toContain(recentArticle);
   });
 });
+
+// ── S2-mf-schema — BiasedMF table creation ───────────────────────────────────
+
+describe('S2-mf-schema — BiasedMF tables exist after DO init', () => {
+  function stub() {
+    return env.REC_DO.get(env.REC_DO.idFromName('global'));
+  }
+
+  it('global_state initialises with mean=0 and n=0', async () => {
+    type GsRow = { mean: number; n: number };
+    const s = stub();
+    const res = await s.fetch(new Request('http://do-internal/debug/global-state'));
+    expect(res.status).toBe(200);
+    const row = await res.json() as GsRow;
+    expect(typeof row.mean).toBe('number');
+    expect(typeof row.n).toBe('number');
+  });
+
+  it('user_factors table accepts a full row insert and retrieval', async () => {
+    const s = stub();
+    const res = await s.fetch(new Request('http://do-internal/debug/user-factors-count'));
+    expect(res.status).toBe(200);
+    const { count } = await res.json() as { count: number };
+    expect(typeof count).toBe('number');
+  });
+
+  it('item_factors table accepts a full row insert and retrieval', async () => {
+    const s = stub();
+    const res = await s.fetch(new Request('http://do-internal/debug/item-factors-count'));
+    expect(res.status).toBe(200);
+    const { count } = await res.json() as { count: number };
+    expect(typeof count).toBe('number');
+  });
+
+  it('existing interactions table still present', async () => {
+    const s = stub();
+    const res = await s.fetch(new Request('http://do-internal/debug/interactions-count'));
+    expect(res.status).toBe(200);
+    const { count } = await res.json() as { count: number };
+    expect(typeof count).toBe('number');
+  });
+});

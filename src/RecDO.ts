@@ -28,6 +28,42 @@ export class RecDO implements DurableObject {
         updated_at INTEGER NOT NULL
       )
     `);
+    this.state.storage.sql.exec(`
+      CREATE TABLE IF NOT EXISTS global_state (
+        id   INTEGER PRIMARY KEY DEFAULT 1,
+        mean REAL    NOT NULL DEFAULT 0,
+        n    INTEGER NOT NULL DEFAULT 0
+      )
+    `);
+    this.state.storage.sql.exec(
+      `INSERT OR IGNORE INTO global_state (id, mean, n) VALUES (1, 0, 0)`,
+    );
+    this.state.storage.sql.exec(`
+      CREATE TABLE IF NOT EXISTS user_factors (
+        user_id    TEXT    PRIMARY KEY,
+        bias       REAL    NOT NULL DEFAULT 0,
+        v0  REAL NOT NULL DEFAULT 0, v1  REAL NOT NULL DEFAULT 0,
+        v2  REAL NOT NULL DEFAULT 0, v3  REAL NOT NULL DEFAULT 0,
+        v4  REAL NOT NULL DEFAULT 0, v5  REAL NOT NULL DEFAULT 0,
+        v6  REAL NOT NULL DEFAULT 0, v7  REAL NOT NULL DEFAULT 0,
+        v8  REAL NOT NULL DEFAULT 0, v9  REAL NOT NULL DEFAULT 0,
+        updated_at INTEGER NOT NULL DEFAULT 0
+      )
+    `);
+    this.state.storage.sql.exec(`
+      CREATE TABLE IF NOT EXISTS item_factors (
+        article_id TEXT    PRIMARY KEY,
+        bias       REAL    NOT NULL DEFAULT 0,
+        v0  REAL NOT NULL DEFAULT 0, v1  REAL NOT NULL DEFAULT 0,
+        v2  REAL NOT NULL DEFAULT 0, v3  REAL NOT NULL DEFAULT 0,
+        v4  REAL NOT NULL DEFAULT 0, v5  REAL NOT NULL DEFAULT 0,
+        v6  REAL NOT NULL DEFAULT 0, v7  REAL NOT NULL DEFAULT 0,
+        v8  REAL NOT NULL DEFAULT 0, v9  REAL NOT NULL DEFAULT 0,
+        source_id  TEXT    NOT NULL DEFAULT '',
+        topic      TEXT    NOT NULL DEFAULT '',
+        updated_at INTEGER NOT NULL DEFAULT 0
+      )
+    `);
   }
 
   async fetch(request: Request): Promise<Response> {
@@ -57,6 +93,28 @@ export class RecDO implements DurableObject {
         : Date.now() - SQLITE_RETENTION_MS;
       this.prune(cutoff);
       return new Response(null, { status: 204 });
+    }
+
+    // Debug endpoints (used by tests — not exposed through the public Worker)
+    if (url.pathname === '/debug/global-state' && request.method === 'GET') {
+      type GsRow = { mean: number; n: number };
+      const [row] = [...this.state.storage.sql.exec<GsRow>(`SELECT mean, n FROM global_state WHERE id = 1`)];
+      return Response.json(row ?? { mean: 0, n: 0 });
+    }
+    if (url.pathname === '/debug/user-factors-count' && request.method === 'GET') {
+      type CountRow = { count: number };
+      const [row] = [...this.state.storage.sql.exec<CountRow>(`SELECT COUNT(*) AS count FROM user_factors`)];
+      return Response.json(row);
+    }
+    if (url.pathname === '/debug/item-factors-count' && request.method === 'GET') {
+      type CountRow = { count: number };
+      const [row] = [...this.state.storage.sql.exec<CountRow>(`SELECT COUNT(*) AS count FROM item_factors`)];
+      return Response.json(row);
+    }
+    if (url.pathname === '/debug/interactions-count' && request.method === 'GET') {
+      type CountRow = { count: number };
+      const [row] = [...this.state.storage.sql.exec<CountRow>(`SELECT COUNT(*) AS count FROM interactions`)];
+      return Response.json(row);
     }
 
     return new Response('Not Found', { status: 404 });
