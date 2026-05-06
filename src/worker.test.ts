@@ -169,3 +169,57 @@ describe('S3 — GET /recommendations/:userId', () => {
     expect(limited.status).toBe(429);
   });
 });
+
+// ── S5 — KV cache ─────────────────────────────────────────────────────────────
+
+describe('S5 — KV cache for /recommendations/:userId', () => {
+  const kvUser = 'kv-cache-test-user';
+
+  it('cache miss: first request calls DO and populates KV', async () => {
+    const res1 = await req('GET', `/recommendations/${kvUser}`);
+    expect(res1.status).toBe(200);
+    const body1 = await res1.json() as { articleIds: string[]; generatedAt: number };
+
+    // Second request within TTL should return the same generatedAt (served from KV)
+    const res2 = await req('GET', `/recommendations/${kvUser}`);
+    const body2 = await res2.json() as { articleIds: string[]; generatedAt: number };
+    expect(body2.generatedAt).toBe(body1.generatedAt);
+  });
+
+  it('cache hit: subsequent requests return identical articleIds and generatedAt', async () => {
+    const cacheUser = 'kv-stable-user';
+    const res1 = await req('GET', `/recommendations/${cacheUser}`);
+    const body1 = await res1.json() as { articleIds: string[]; generatedAt: number };
+
+    const res2 = await req('GET', `/recommendations/${cacheUser}`);
+    const body2 = await res2.json() as { articleIds: string[]; generatedAt: number };
+
+    expect(body2.generatedAt).toBe(body1.generatedAt);
+    expect(body2.articleIds).toEqual(body1.articleIds);
+  });
+
+  it('POST /interactions does not invalidate KV cache (TTL-only expiry)', async () => {
+    const stableUser = 'kv-no-invalidate-user';
+    const res1 = await req('GET', `/recommendations/${stableUser}`);
+    const body1 = await res1.json() as { generatedAt: number };
+
+    // Posting an interaction for a different user should not affect stableUser's cache
+    await req('POST', '/interactions', { events: [sampleEvent] });
+
+    const res2 = await req('GET', `/recommendations/${stableUser}`);
+    const body2 = await res2.json() as { generatedAt: number };
+    expect(body2.generatedAt).toBe(body1.generatedAt);
+  });
+
+  it('response is valid RecResponse shape when served from cache', async () => {
+    const shapeUser = 'kv-shape-user';
+    // First call: cache miss
+    await req('GET', `/recommendations/${shapeUser}`);
+    // Second call: cache hit
+    const res = await req('GET', `/recommendations/${shapeUser}`);
+    expect(res.status).toBe(200);
+    const body = await res.json() as { articleIds: unknown; generatedAt: unknown };
+    expect(Array.isArray(body.articleIds)).toBe(true);
+    expect(typeof body.generatedAt).toBe('number');
+  });
+});

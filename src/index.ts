@@ -181,11 +181,17 @@ export default {
       const rawLimit = parseInt(url.searchParams.get('limit') ?? String(DEFAULT_LIMIT), 10);
       const limit = Math.min(isNaN(rawLimit) || rawLimit < 1 ? DEFAULT_LIMIT : rawLimit, MAX_LIMIT);
 
+      const cacheKey = `recs:${userId}`;
+      const cached = await env.REC_STORE.get(cacheKey, 'json') as RecResponse | null;
+      if (cached) return json(cached, request, env);
+
       const stub = getRecDOStub(env);
       const doRes = await stub.fetch(
         new Request(`http://do-internal/recs/${encodeURIComponent(userId)}?limit=${limit}`),
       );
       const recBody = await doRes.json() as RecResponse;
+
+      await env.REC_STORE.put(cacheKey, JSON.stringify(recBody), { expirationTtl: 300 });
       return json(recBody, request, env);
     }
 

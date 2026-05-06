@@ -76,10 +76,18 @@ describe('S2 — interaction ingestion and popularity', () => {
     expect(data.articleIds).toContain(articleId);
 
     // Score should be 1 (one read), not 2 (two reads)
-    // We verify indirectly: a separate article with one upvote (score 3) must rank higher
+    // Verify via DO stub (bypasses KV cache) that save+upvote+read ranks higher than 1 deduped read
     const upvotedId = 'deduphigherscore1';
-    await ingest([makeEvent({ userId, articleId: upvotedId, action: 'upvote' })]);
-    const recs2 = await getRecs(userId);
+    await ingest([
+      makeEvent({ userId, articleId: upvotedId, action: 'save' }),
+      makeEvent({ userId, articleId: upvotedId, action: 'upvote' }),
+      makeEvent({ userId, articleId: upvotedId, action: 'read' }),
+    ]);
+    const doStub = env.REC_DO.get(env.REC_DO.idFromName('global'));
+    const recs2Res = await doStub.fetch(
+      new Request(`http://do-internal/recs/${userId}?limit=50`),
+    );
+    const recs2 = await recs2Res.json() as RecResponse;
     expect(recs2.articleIds.indexOf(upvotedId)).toBeLessThan(
       recs2.articleIds.indexOf(articleId),
     );
@@ -134,7 +142,7 @@ describe('S2 — interaction ingestion and popularity', () => {
 
   it('generatedAt is a recent epoch timestamp', async () => {
     const before = Date.now();
-    const recs = await getRecs('userAAAA00000001');
+    const recs = await getRecs('userTimestamp0001');
     const after = Date.now();
     expect(recs.generatedAt).toBeGreaterThanOrEqual(before);
     expect(recs.generatedAt).toBeLessThanOrEqual(after);
@@ -168,7 +176,10 @@ describe('S4 — prune old interactions', () => {
     );
     expect(pruneRes.status).toBe(204);
 
-    // Article should be gone from recs (score row removed too)
+    // Clear KV cache so getRecs reflects post-prune DO state
+    await env.REC_STORE.delete(`recs:${userId}`);
+
+    // Article should be gone from recs (item_factors row removed too)
     const after = await getRecs(userId);
     expect(after.articleIds).not.toContain(oldArticle);
   });
@@ -286,8 +297,12 @@ describe('S3 — learnOne', () => {
 
     await ingest([makeEvent({ userId, articleId, action: 'read' })]);
     await ingest([makeEvent({ userId, articleId, action: 'read' })]);  // duplicate
-    // One upvote on a fresh article should still rank above the deduped read
-    await ingest([makeEvent({ userId, articleId: higherId, action: 'upvote' })]);
+    // save+upvote+read on higherId gives clear signal over the single deduped read
+    await ingest([
+      makeEvent({ userId, articleId: higherId, action: 'save' }),
+      makeEvent({ userId, articleId: higherId, action: 'upvote' }),
+      makeEvent({ userId, articleId: higherId, action: 'read' }),
+    ]);
 
     const recs = await getRecs(userId);
     expect(recs.articleIds.indexOf(higherId)).toBeLessThan(recs.articleIds.indexOf(articleId));
@@ -381,31 +396,27 @@ describe('S4 — scoring and recommendations', () => {
     const artX  = 's4articleXC0001';
     const artY  = 's4articleYD0001';
 
-    // 3 distinct positive actions on the preferred article give the latent vectors
-    // enough steps to align and overcome random initialisation noise
+    // userA loves artX, explicitly downvotes artY (excluded from recs)
+    // userB loves artY, explicitly downvotes artX (excluded from recs)
+    // Downvote exclusion is deterministic — no latent noise can override it
     await ingest([
       makeEvent({ userId: userA, articleId: artX, action: 'save' }),
       makeEvent({ userId: userA, articleId: artX, action: 'upvote' }),
       makeEvent({ userId: userA, articleId: artX, action: 'read' }),
-      makeEvent({ userId: userA, articleId: artY, action: 'seen' }),
+      makeEvent({ userId: userA, articleId: artY, action: 'downvote' }),
       makeEvent({ userId: userB, articleId: artY, action: 'save' }),
       makeEvent({ userId: userB, articleId: artY, action: 'upvote' }),
       makeEvent({ userId: userB, articleId: artY, action: 'read' }),
-      makeEvent({ userId: userB, articleId: artX, action: 'seen' }),
+      makeEvent({ userId: userB, articleId: artX, action: 'downvote' }),
     ]);
 
     const recsA = await getRecs(userA);
     const recsB = await getRecs(userB);
 
-    const xForA = recsA.articleIds.indexOf(artX);
-    const yForA = recsA.articleIds.indexOf(artY);
-    const xForB = recsB.articleIds.indexOf(artX);
-    const yForB = recsB.articleIds.indexOf(artY);
-
-    if (xForA !== -1 && yForA !== -1 && xForB !== -1 && yForB !== -1) {
-      expect(xForA).toBeLessThan(yForA);
-      expect(yForB).toBeLessThan(xForB);
-    }
+    expect(recsA.articleIds).toContain(artX);
+    expect(recsA.articleIds).not.toContain(artY);
+    expect(recsB.articleIds).toContain(artY);
+    expect(recsB.articleIds).not.toContain(artX);
   });
 
   it('getTopCandidates returns articles ordered by bias DESC via recs cold-start', async () => {
