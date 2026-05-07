@@ -27,9 +27,11 @@ import {
 } from '../src/scoring.js';
 import type { FactorRow, MfParams } from '../src/scoring.js';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const DATA_DIR  = path.join(__dirname, '..', 'data');
-const DATA_FILE = path.join(DATA_DIR, 'synthetic-ratings.tsv');
+const __dirname    = path.dirname(fileURLToPath(import.meta.url));
+const DATA_DIR     = path.join(__dirname, '..', 'data');
+const ML100K_DATA  = path.join(DATA_DIR, 'ml-100k', 'u.data');
+const ML100K_ITEMS = path.join(DATA_DIR, 'ml-100k', 'u.item');
+const SYNTH_FILE   = path.join(DATA_DIR, 'synthetic-ratings.tsv');
 
 // ── Synthetic data generation ─────────────────────────────────────────────────
 
@@ -90,22 +92,47 @@ function generateDataset(seed = 42): Rating[] {
   return ratings;
 }
 
-function ensureDataset(): Rating[] {
-  if (fs.existsSync(DATA_FILE)) {
-    process.stdout.write('Loading cached synthetic dataset… ');
-    const rows = fs.readFileSync(DATA_FILE, 'utf8').trim().split('\n').map(line => {
+function loadItemTitles(): Map<string, string> {
+  const titles = new Map<string, string>();
+  if (!fs.existsSync(ML100K_ITEMS)) return titles;
+  for (const line of fs.readFileSync(ML100K_ITEMS, 'latin1').trim().split('\n')) {
+    const parts = line.split('|');
+    if (parts.length >= 2) titles.set(parts[0], parts[1]);
+  }
+  return titles;
+}
+
+function ensureDataset(): { ratings: Rating[]; titles: Map<string, string>; source: string } {
+  // Prefer real MovieLens 100K if present
+  if (fs.existsSync(ML100K_DATA)) {
+    process.stdout.write('Loading MovieLens 100K (u.data)… ');
+    const ratings = fs.readFileSync(ML100K_DATA, 'utf8').trim().split('\n').map(line => {
       const [userId, itemId, r] = line.split('\t');
       return { userId, itemId, rating: Number(r) };
     });
-    console.log(`${rows.length.toLocaleString()} ratings loaded`);
-    return rows;
+    console.log(`${ratings.length.toLocaleString()} ratings loaded`);
+    const titles = loadItemTitles();
+    return { ratings, titles, source: 'MovieLens 100K' };
   }
+
+  // Fall back to cached synthetic data
+  if (fs.existsSync(SYNTH_FILE)) {
+    process.stdout.write('Loading cached synthetic dataset… ');
+    const ratings = fs.readFileSync(SYNTH_FILE, 'utf8').trim().split('\n').map(line => {
+      const [userId, itemId, r] = line.split('\t');
+      return { userId, itemId, rating: Number(r) };
+    });
+    console.log(`${ratings.length.toLocaleString()} ratings loaded`);
+    return { ratings, titles: new Map(), source: 'synthetic' };
+  }
+
+  // Generate synthetic data
   process.stdout.write('Generating synthetic dataset… ');
   fs.mkdirSync(DATA_DIR, { recursive: true });
   const ratings = generateDataset(42);
-  fs.writeFileSync(DATA_FILE, ratings.map(r => `${r.userId}\t${r.itemId}\t${r.rating}`).join('\n'));
+  fs.writeFileSync(SYNTH_FILE, ratings.map(r => `${r.userId}\t${r.itemId}\t${r.rating}`).join('\n'));
   console.log(`${ratings.length.toLocaleString()} ratings written to data/synthetic-ratings.tsv`);
-  return ratings;
+  return { ratings, titles: new Map(), source: 'synthetic' };
 }
 
 // ── Train / test split ────────────────────────────────────────────────────────
@@ -354,19 +381,16 @@ function improvementStr(baseline: number, model: number): string {
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 async function main(): Promise<void> {
-  console.log('\n═══════════════════════════════════════════════════════════════');
-  console.log(' ricochet BiasedMF — offline evaluation (synthetic dataset)');
-  console.log('═══════════════════════════════════════════════════════════════\n');
-
   // 1. Dataset
-  const all = ensureDataset();
+  const { ratings: all, titles, source } = ensureDataset();
   const users = new Set(all.map(r => r.userId));
   const items = new Set(all.map(r => r.itemId));
+
+  console.log('\n═══════════════════════════════════════════════════════════════');
+  console.log(` ricochet BiasedMF — offline evaluation  [${source}]`);
+  console.log('═══════════════════════════════════════════════════════════════\n');
   console.log(`  ${all.length.toLocaleString()} ratings  |  ${users.size} users  |  ${items.size} items`);
-  const ratingDist = [1, 2, 3, 4, 5].map(s => ({
-    star: s,
-    n: all.filter(r => r.rating === s).length,
-  }));
+  const ratingDist = [1, 2, 3, 4, 5].map(s => ({ star: s, n: all.filter(r => r.rating === s).length }));
   for (const { star, n } of ratingDist) {
     console.log(`  ${star}★  ${String(n).padStart(7)}  ${bar(n / all.length)}`);
   }
@@ -407,12 +431,11 @@ async function main(): Promise<void> {
   console.log(`  RMSE improvement vs global mean: ${improvementStr(bGlobal.rmse, mf.rmse)}`);
   console.log(`  RMSE improvement vs item mean:   ${improvementStr(bItem.rmse, mf.rmse)}\n`);
 
-  // 6. Predicted score by true rating (monotonicity check)
+  // 6. Monotonicity check
   console.log('─── Predicted score vs true rating (should increase with ★) ──');
   const buckets: Record<number, number[]> = { 1: [], 2: [], 3: [], 4: [], 5: [] };
   for (const r of testSet) buckets[r.rating]?.push(predict(model, r.userId, r.itemId));
-  let prevMean = -Infinity;
-  let monotone = true;
+  let prevMean = -Infinity, monotone = true;
   for (const star of [1, 2, 3, 4, 5]) {
     const preds = buckets[star];
     const mean  = preds.reduce((a, b) => a + b, 0) / preds.length;
@@ -423,9 +446,9 @@ async function main(): Promise<void> {
   console.log(`  Monotonicity (1★ < 2★ < 3★ < 4★ < 5★): ${monotone ? '✓ PASS' : '✗ FAIL'}\n`);
 
   // 7. Ranking quality
-  const candidateItems = [...items].slice(0, 500); // top 500 known items as candidates
+  const candidateItems = [...items].slice(0, 500);
   const ranking = precisionRecallAt(model, testSet, candidateItems, TOP_K, 100);
-  console.log(`─── Ranking quality  @${TOP_K}  (100 sample users) ──────────────────`);
+  console.log(`─── Ranking quality  @${TOP_K}  (100 sample users, 500 candidates) ──`);
   console.log(`  Precision@${TOP_K}:  ${pct(ranking.precision)}  ${bar(ranking.precision)}`);
   console.log(`  Recall@${TOP_K}:     ${pct(ranking.recall)}  ${bar(ranking.recall)}`);
   console.log(`  NDCG@${TOP_K}:       ${pct(ranking.ndcg)}  ${bar(ranking.ndcg)}\n`);
@@ -443,34 +466,32 @@ async function main(): Promise<void> {
   console.log(`  Pairwise accuracy (liked ranked above disliked): ${pct(fv.pairwiseAccuracy)}  ${bar(fv.pairwiseAccuracy)}`);
   console.log(`  Disliked items below cutoff (filter catches):    ${pct(fv.dislikedBelowCutoff)}  ${bar(fv.dislikedBelowCutoff)}`);
   console.log(`  Liked items above cutoff (not wrongly filtered): ${pct(fv.likedAboveCutoff)}  ${bar(fv.likedAboveCutoff)}`);
-  // Pairwise accuracy > 60% and positive score gap are the meaningful bar.
-  // dislikedBelowCutoff is informational — in production the filter uses explicit
-  // downvote records (not predicted scores), so low cutoff-catch rate is expected.
   const filterResult = fv.pairwiseAccuracy > 0.6 && scoreDelta > 0 ? '✓ PASS' : '✗ FAIL';
   console.log(`  Filter working: ${filterResult}\n`);
 
-  // 9. Spot-check: one concrete user
+  // 9. Spot-check: one concrete user with movie titles if available
   const spotUser = [...testSet.reduce((m, r) => {
     m.set(r.userId, (m.get(r.userId) ?? 0) + 1); return m;
   }, new Map<string, number>()).entries()]
     .filter(([, c]) => c >= 5)
-    .sort(() => 0.5 - Math.random())[0]?.[0];
+    .sort(([, a], [, b]) => b - a)[2]?.[0];  // pick 3rd most-rated user for variety
 
   if (spotUser) {
     const userTest = testSet.filter(r => r.userId === spotUser);
-    const liked    = userTest.filter(r => r.rating >= LIKE_THRESHOLD).slice(0, 4);
-    const disliked = userTest.filter(r => r.rating <= DISLIKE_THRESHOLD).slice(0, 4);
+    const liked    = userTest.filter(r => r.rating >= LIKE_THRESHOLD).slice(0, 5);
+    const disliked = userTest.filter(r => r.rating <= DISLIKE_THRESHOLD).slice(0, 5);
+    const label = (id: string) => titles.get(id)?.substring(0, 42) ?? id;
     console.log(`─── Spot-check: user ${spotUser} ───────────────────────────────────────`);
     if (liked.length) {
       console.log(`  Items they liked (≥${LIKE_THRESHOLD}★) → predicted:`);
       for (const r of liked) {
-        console.log(`    true ${r.rating}★   pred ${fmt(predict(model, r.userId, r.itemId), 2)}   item ${r.itemId}`);
+        console.log(`    true ${r.rating}★  pred ${fmt(predict(model, r.userId, r.itemId), 2)}  ${label(r.itemId)}`);
       }
     }
     if (disliked.length) {
-      console.log(`  Items they disliked (≤${DISLIKE_THRESHOLD}★) → predicted (should be low):`);
+      console.log(`  Items they disliked (≤${DISLIKE_THRESHOLD}★) → predicted (should be lower):`);
       for (const r of disliked) {
-        console.log(`    true ${r.rating}★   pred ${fmt(predict(model, r.userId, r.itemId), 2)}   item ${r.itemId}`);
+        console.log(`    true ${r.rating}★  pred ${fmt(predict(model, r.userId, r.itemId), 2)}  ${label(r.itemId)}`);
       }
     }
   }
