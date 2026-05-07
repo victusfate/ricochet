@@ -3,8 +3,19 @@ ML100K_DIR    := $(DATA_DIR)/ml-100k
 ML100K_ZIP    := $(DATA_DIR)/ml-100k.zip
 ML100K_DATA   := $(ML100K_DIR)/u.data
 ML100K_URL    := https://files.grouplens.org/datasets/movielens/ml-100k.zip
+NODE_MODULES  := node_modules/.package-lock.json
 
-.PHONY: data clean-data eval help
+.PHONY: install test data clean-data eval help
+
+## Install Node dependencies
+install: $(NODE_MODULES)
+
+$(NODE_MODULES):
+	npm install
+
+## Run unit and integration tests
+test: $(NODE_MODULES)
+	npm test
 
 ## Download and extract MovieLens 100K into data/ml-100k/
 data: $(ML100K_DATA)
@@ -18,7 +29,7 @@ $(ML100K_ZIP):
 	curl -L --fail --progress-bar -o $(ML100K_ZIP) $(ML100K_URL)
 
 ## Run offline BiasedMF evaluation (downloads data first if needed)
-eval: $(ML100K_DATA)
+eval: $(NODE_MODULES) $(ML100K_DATA)
 	npm run eval:movielens
 
 ## Remove downloaded dataset (keeps synthetic cache)
