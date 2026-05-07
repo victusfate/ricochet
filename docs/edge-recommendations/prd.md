@@ -6,7 +6,7 @@ Feature slug: `edge-recommendations`
 
 ## Problem
 
-`victusfate/boomerang` ranks articles entirely on the client using per-user Fireproof weights
+`victusfate/boomerang` ranks articles entirely on the client using per-user IndexedDB weights
 (recency, source, topic, keyword). There is no shared signal: a new device starts cold, popular
 articles are invisible to new users, and no cross-user trends are surfaced.
 
@@ -47,7 +47,7 @@ See `design.md` for full rationale. Summary:
 - **Single global RecDO** (Durable Object) with SQLite — consistent write path, no external DB
 - **KV `REC_STORE`** — cache recommendation snapshots (5-min TTL)
 - **Popularity score** = `upvotes×3 + reads×1 + saves×2 + seens×0.1 − downvotes×2` (no ML)
-- **Anonymous userId** — SHA-256 of Fireproof deviceId; no PII
+- **Anonymous userId** — SHA-256 of IndexedDB deviceId; no PII
 - **Batch cap** — max 200 events per POST; validated and rejected with 400 otherwise
 - **CORS** — same allowlist as `meta-worker`; `EXTRA_CORS_ORIGINS` env for custom domains
 - **Rate limits** — 60 req/min (interactions), 30 req/min (recommendations) per client IP
@@ -101,7 +101,7 @@ Errors: 429 (rate limited).
 ## Out of Scope
 
 - Article fetching / RSS parsing — stays in `rss-worker`
-- User prefs persistence — stays in Fireproof (`news-feed`)
+- User prefs persistence — stays in IndexedDB (`news-feed`)
 - Cross-device sync — stays in `sync-worker`
 - AI tags — stays in `meta-worker`
 - Local re-ranking — stays in `news-feed/src/services/algorithm.ts`

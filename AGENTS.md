@@ -107,7 +107,7 @@ When in doubt, ask before producing a diff larger than ~30 lines for a small fea
 ## What rec-worker does NOT own
 
 - Article fetching / RSS parsing — `rss-worker` in boomerang
-- User prefs persistence — Fireproof in `news-feed`
+- User prefs persistence — IndexedDB in `news-feed`
 - Cross-device sync — `sync-worker` in boomerang
 - AI tags — `meta-worker` in boomerang
 - Local re-ranking — `news-feed/src/services/algorithm.ts`

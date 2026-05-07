@@ -9,14 +9,14 @@ Feature slug: `edge-recommendations`
 **Q: What is the single responsibility of rec-worker?**
 A: Ingest cross-user interaction events and produce ranked article-ID lists based on aggregated
 popularity and collaborative co-occurrence. Per-user personalisation (topic/source weights,
-keyword weights) remains entirely in Fireproof on the client (`news-feed`).
+keyword weights) remains entirely in IndexedDB on the client (`news-feed`).
 
 **Q: How do article IDs arrive at rec-worker?**
 A: The client sends them in `InteractionEvent.articleId` — the same 16-hex SHA-256(url)[:8] IDs
 already computed by `rss-worker`. rec-worker is ID-transparent; it never fetches or parses articles.
 
 **Q: What user identity is used?**
-A: An anonymous, stable `userId` — e.g., a SHA-256 hash of Fireproof's `deviceId` — generated
+A: An anonymous, stable `userId` — e.g., a SHA-256 hash of IndexedDB's `deviceId` — generated
 and stored locally in `news-feed`. rec-worker never stores PII.
 
 **Q: Does rec-worker duplicate the local scoring formula in `news-feed`?**
@@ -83,7 +83,7 @@ A: Same origin allowlist as `meta-worker`. Rate limit: 60 req/min for `POST /int
 | **InteractionEvent** | Single user–article interaction signal sent to `POST /interactions` |
 | **RecResponse** | Response from `GET /recommendations/:userId` — ordered article IDs |
 | **popularity score** | Weighted sum: `upvotes×3 + reads×1 + saves×2 + seens×0.1 − downvotes×2` |
-| **userId** | Anonymous stable client identifier (SHA-256 of Fireproof deviceId) |
+| **userId** | Anonymous stable client identifier (SHA-256 of IndexedDB deviceId) |
 | **articleId** | 16 hex chars — SHA-256(url)[:8], same scheme as boomerang `rss-worker` |
 | **Topic** | One of 9 string literals; see `src/types.ts` |
 | **action** | One of `read \| upvote \| downvote \| save \| seen` |
