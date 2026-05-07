@@ -9,6 +9,9 @@ dist/
 .dev.vars
 .env
 
+# downloaded datasets
+data/
+
 # OS / editor
 .DS_Store
 *.swp
