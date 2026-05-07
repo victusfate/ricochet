@@ -15,7 +15,7 @@ export type Action = 'read' | 'upvote' | 'downvote' | 'save' | 'seen';
 
 /**
  * A single user–article interaction event sent to POST /interactions.
- * userId is an anonymous stable identifier (e.g. SHA-256 of Fireproof deviceId).
+ * userId is an anonymous stable identifier (e.g. SHA-256 of IndexedDB deviceId).
  * articleId is the 16-hex SHA-256(url)[:8] ID from boomerang rss-worker.
  */
 export interface InteractionEvent {
