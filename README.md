@@ -163,6 +163,20 @@ npm run dev
 npm run deploy
 ```
 
+## Automated versioning
+
+Version bumps are automated from conventional commits on `main` via semantic-release.
+
+- `fix:` commits trigger patch releases
+- `feat:` commits trigger minor releases
+- `BREAKING CHANGE:` in commit body/footer (or `!`) triggers major releases
+
+To preview the next computed version locally:
+
+```sh
+npm run release:dry-run
+```
+
 ## Offline evaluation
 
 ```sh

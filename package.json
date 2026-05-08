@@ -7,13 +7,13 @@
   "type": "module",
   "exports": {
     ".": {
-      "types":   "./dist/lib.d.ts",
-      "import":  "./dist/lib.js",
+      "types": "./dist/lib.d.ts",
+      "import": "./dist/lib.js",
       "require": "./dist/lib.cjs"
     },
     "./worker": "./src/index.ts"
   },
-  "main":  "./dist/lib.cjs",
+  "main": "./dist/lib.cjs",
   "module": "./dist/lib.js",
   "types": "./dist/lib.d.ts",
   "files": [
@@ -27,17 +27,24 @@
     "src/worker-env.ts"
   ],
   "scripts": {
-    "build":           "tsup",
-    "prepare":         "npm run build",
-    "prepublishOnly":  "npm run typecheck && npm test",
-    "deploy":          "wrangler deploy",
-    "dev":             "wrangler dev --port 8790",
-    "cf-typegen":      "wrangler types",
-    "typecheck":       "tsc --noEmit",
-    "test":            "vitest run",
-    "eval:movielens":  "tsx --tsconfig tsconfig.scripts.json scripts/movielens-eval.ts"
+    "build": "tsup",
+    "prepare": "npm run build",
+    "prepublishOnly": "npm run typecheck && npm test",
+    "release": "semantic-release",
+    "release:dry-run": "semantic-release --dry-run",
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev --port 8790",
+    "cf-typegen": "wrangler types",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "eval:movielens": "tsx --tsconfig tsconfig.scripts.json scripts/movielens-eval.ts"
   },
-  "keywords": ["recommendation", "matrix-factorization", "collaborative-filtering", "cloudflare-workers"],
+  "keywords": [
+    "recommendation",
+    "matrix-factorization",
+    "collaborative-filtering",
+    "cloudflare-workers"
+  ],
   "repository": {
     "type": "git",
     "url": "https://github.com/victusfate/ricochet.git"
@@ -45,7 +52,15 @@
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "^0.15.1",
     "@cloudflare/workers-types": "^4.20260409.1",
+    "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/commit-analyzer": "^13.0.1",
+    "@semantic-release/git": "^10.0.1",
+    "@semantic-release/github": "^12.0.6",
+    "@semantic-release/npm": "^13.1.5",
+    "@semantic-release/release-notes-generator": "^14.1.0",
     "@types/node": "^25.6.0",
+    "conventional-changelog-conventionalcommits": "^9.3.1",
+    "semantic-release": "^25.0.3",
     "tsup": "^8.5.1",
     "tsx": "^4.21.0",
     "typescript": "^5.5.2",
