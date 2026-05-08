@@ -1,0 +1,19 @@
+## 1.0.0 (2026-05-08)
+
+### Features
+
+* **biased-mf-recs:** S1+S2 — pure BiasedMF math and SQLite schema ([0cb629f](https://github.com/victusfate/ricochet/commit/0cb629f47805923b3e96cf17e99b758564a114fe))
+* **biased-mf-recs:** S3+S4 — learnOne, score, getTopCandidates ([6e465cc](https://github.com/victusfate/ricochet/commit/6e465cc0eec01ac4dd2f3883aa0f1514f9daf68c))
+* **biased-mf-recs:** S5 — KV cache for /recommendations/:userId ([7355483](https://github.com/victusfate/ricochet/commit/73554835ef1d5c38edf1141a55bd01c645edebcb))
+* configure package for npm publishing as @victusfate/ricochet ([f82782f](https://github.com/victusfate/ricochet/commit/f82782f1c7d97535acf71626b928b42189ef8e98))
+* **edge-recommendations:** implement rec-worker with types, RecDO, routing, tests, docs ([c0963be](https://github.com/victusfate/ricochet/commit/c0963be860e72a51450d9e91cda32761f04dba74))
+* **eval:** offline BiasedMF evaluation on synthetic rating dataset ([2bb1ef3](https://github.com/victusfate/ricochet/commit/2bb1ef350df79b540488fa30f1d6d61565070f03))
+* **eval:** support real MovieLens 100K dataset ([6c5994b](https://github.com/victusfate/ricochet/commit/6c5994b78d445d6ca7d49f55ba525b736c2bc38e))
+* expose worker subpath export for boomerang rec-worker ([b6a9b11](https://github.com/victusfate/ricochet/commit/b6a9b1140b574eeda2c85fc11b891cb03fc79b6c))
+
+### Bug Fixes
+
+* add prepare script so GitHub installs auto-build dist/ ([4ef2558](https://github.com/victusfate/ricochet/commit/4ef2558ff60bc00323c145e8c60d66c876272155))
+* boost item bias with seed users to stabilize S2 dedup ordering test ([e6ef756](https://github.com/victusfate/ricochet/commit/e6ef7562590399f93591cfa6e1130cbf593f919b))
+* **ci:** use node 22 for semantic-release ([9d2354e](https://github.com/victusfate/ricochet/commit/9d2354efb1e824b125134bedf906ad1e07e0d665))
+* trigger patch release ([0c754e2](https://github.com/victusfate/ricochet/commit/0c754e223d258c03a014de2bafea00714cbdfcdc))
