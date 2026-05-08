@@ -24,7 +24,8 @@
   ],
   "scripts": {
     "build":           "tsup",
-    "prepublishOnly":  "npm run typecheck && npm test && npm run build",
+    "prepare":         "npm run build",
+    "prepublishOnly":  "npm run typecheck && npm test",
     "deploy":          "wrangler deploy",
     "dev":             "wrangler dev --port 8790",
     "cf-typegen":      "wrangler types",
