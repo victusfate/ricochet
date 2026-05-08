@@ -5,7 +5,7 @@ ML100K_DATA   := $(ML100K_DIR)/u.data
 ML100K_URL    := https://files.grouplens.org/datasets/movielens/ml-100k.zip
 NODE_MODULES  := node_modules/.package-lock.json
 
-.PHONY: install build test data clean-data eval help
+.PHONY: install build test dev data clean-data eval help
 
 ## Install Node dependencies
 install: $(NODE_MODULES)
@@ -20,6 +20,10 @@ build: $(NODE_MODULES)
 ## Run unit and integration tests
 test: $(NODE_MODULES)
 	npm test
+
+## Start wrangler dev server on :8790
+dev: $(NODE_MODULES)
+	npm run dev
 
 ## Download and extract MovieLens 100K into data/ml-100k/
 data: $(ML100K_DATA)
