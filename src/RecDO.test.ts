@@ -75,13 +75,17 @@ describe('S2 — interaction ingestion and popularity', () => {
     // Article should still be in recs
     expect(data.articleIds).toContain(articleId);
 
-    // Score should be 1 (one read), not 2 (two reads)
-    // Verify via DO stub (bypasses KV cache) that save+upvote+read ranks higher than 1 deduped read
+    // Score should be 1 (one read), not 2 (two reads).
+    // Seed upvotedId with save interactions from multiple users so its item bias
+    // dominates clearly over articleId's single deduped read — removes latent noise.
     const upvotedId = 'deduphigherscore1';
     await ingest([
-      makeEvent({ userId, articleId: upvotedId, action: 'save' }),
-      makeEvent({ userId, articleId: upvotedId, action: 'upvote' }),
-      makeEvent({ userId, articleId: upvotedId, action: 'read' }),
+      makeEvent({ userId,            articleId: upvotedId, action: 'save' }),
+      makeEvent({ userId,            articleId: upvotedId, action: 'upvote' }),
+      makeEvent({ userId,            articleId: upvotedId, action: 'read' }),
+      makeEvent({ userId: 'dedup-seed-u1', articleId: upvotedId, action: 'save' }),
+      makeEvent({ userId: 'dedup-seed-u2', articleId: upvotedId, action: 'save' }),
+      makeEvent({ userId: 'dedup-seed-u3', articleId: upvotedId, action: 'save' }),
     ]);
     const doStub = env.REC_DO.get(env.REC_DO.idFromName('global'));
     const recs2Res = await doStub.fetch(
