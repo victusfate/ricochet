@@ -105,6 +105,44 @@ npm install github:victusfate/ricochet
 
 No Cloudflare dependencies — safe to import in Node, browsers, and other edge runtimes.
 
+## Deploying as a Worker in another repo
+
+The Worker entry and Durable Object are also exported so you can wrap them with your own `wrangler.jsonc`:
+
+```ts
+// your-worker/src/index.ts
+export { default, RecDO } from '@victusfate/ricochet/worker';
+```
+
+```jsonc
+// your-worker/wrangler.jsonc
+{
+  "name": "your-rec-worker",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-04-09",
+  "kv_namespaces": [
+    { "binding": "REC_STORE", "id": "<your-kv-namespace-id>" }
+  ],
+  "durable_objects": {
+    "bindings": [{ "name": "REC_DO", "class_name": "RecDO" }]
+  },
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["RecDO"] }
+  ],
+  "triggers": { "crons": ["0 * * * *"] }
+}
+```
+
+**Required binding names** — these must match exactly or the worker will fail to start:
+
+| Binding | Type | Name |
+|---------|------|------|
+| KV namespace | `KVNamespace` | `REC_STORE` |
+| Durable Object | `DurableObjectNamespace` | `REC_DO` |
+| Optional env var | `string` | `EXTRA_CORS_ORIGINS` |
+
+The `EXTRA_CORS_ORIGINS` env var accepts a comma-separated list of additional allowed CORS origins (e.g. a custom Cloudflare Pages domain).
+
 ## Quick start
 
 ```sh

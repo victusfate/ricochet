@@ -10,7 +10,8 @@
       "types":   "./dist/lib.d.ts",
       "import":  "./dist/lib.js",
       "require": "./dist/lib.cjs"
-    }
+    },
+    "./worker": "./src/index.ts"
   },
   "main":  "./dist/lib.cjs",
   "module": "./dist/lib.js",
@@ -20,7 +21,10 @@
     "src/lib.ts",
     "src/scoring.ts",
     "src/types.ts",
-    "src/validation.ts"
+    "src/validation.ts",
+    "src/index.ts",
+    "src/RecDO.ts",
+    "src/worker-env.ts"
   ],
   "scripts": {
     "build":           "tsup",

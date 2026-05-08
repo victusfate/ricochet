@@ -1,4 +1,5 @@
 import type { InteractionEvent } from './types';
+import type { RecWorkerEnv } from './worker-env';
 import {
   ACTION_RATING, DEFAULT_MF_PARAMS, newFactorRow, zeroFactorRow,
   mfLearnOne, mfPredict,
@@ -23,7 +24,7 @@ function dbRowToFactorRow(row: FactorsDbRow): FactorRow {
 }
 
 export class RecDO implements DurableObject {
-  constructor(private state: DurableObjectState, private _env: Env) {
+  constructor(private state: DurableObjectState, private _env: RecWorkerEnv) {
     this.state.storage.sql.exec(`
       CREATE TABLE IF NOT EXISTS interactions (
         user_id    TEXT NOT NULL,

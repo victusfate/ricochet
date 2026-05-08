@@ -1,5 +1,7 @@
 import { RecDO } from './RecDO';
 export { RecDO };
+export type { RecWorkerEnv } from './worker-env';
+import type { RecWorkerEnv } from './worker-env';
 import type { RecResponse } from './types';
 import { isValidEvent } from './validation';
 
@@ -19,13 +21,13 @@ const ALLOWED_ORIGINS = [
   'http://127.0.0.1:4173',
 ];
 
-function extraOriginsFromEnv(env: Env): string[] {
+function extraOriginsFromEnv(env: RecWorkerEnv): string[] {
   const raw = env.EXTRA_CORS_ORIGINS?.trim();
   if (!raw) return [];
   return raw.split(',').map(s => s.trim()).filter(Boolean);
 }
 
-function isAllowedOrigin(origin: string, env: Env): boolean {
+function isAllowedOrigin(origin: string, env: RecWorkerEnv): boolean {
   if (!origin) return false;
   if (ALLOWED_ORIGINS.includes(origin)) return true;
   if (extraOriginsFromEnv(env).includes(origin)) return true;
@@ -39,7 +41,7 @@ function isAllowedOrigin(origin: string, env: Env): boolean {
   }
 }
 
-function corsHeaders(request: Request, env: Env): Headers {
+function corsHeaders(request: Request, env: RecWorkerEnv): Headers {
   const origin = request.headers.get('Origin') ?? '';
   const allow = isAllowedOrigin(origin, env) ? origin : ALLOWED_ORIGINS[0];
   const h = new Headers();
@@ -50,13 +52,13 @@ function corsHeaders(request: Request, env: Env): Headers {
   return h;
 }
 
-function json(data: unknown, request: Request, env: Env, init?: ResponseInit): Response {
+function json(data: unknown, request: Request, env: RecWorkerEnv, init?: ResponseInit): Response {
   const headers = corsHeaders(request, env);
   headers.set('Content-Type', 'application/json; charset=utf-8');
   return new Response(JSON.stringify(data), { ...init, headers });
 }
 
-function tooManyRequests(request: Request, env: Env, retryAfterSeconds: number): Response {
+function tooManyRequests(request: Request, env: RecWorkerEnv, retryAfterSeconds: number): Response {
   const headers = corsHeaders(request, env);
   headers.set('Retry-After', String(retryAfterSeconds));
   headers.set('Content-Type', 'application/json; charset=utf-8');
@@ -107,18 +109,18 @@ const MAX_BATCH_SIZE = 200;
 const MAX_LIMIT = 200;
 const DEFAULT_LIMIT = 50;
 
-function getRecDOStub(env: Env): DurableObjectStub {
+function getRecDOStub(env: RecWorkerEnv): DurableObjectStub {
   const id = env.REC_DO.idFromName('global');
   return env.REC_DO.get(id);
 }
 
 export default {
-  async scheduled(_controller: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
+  async scheduled(_controller: ScheduledController, env: RecWorkerEnv, ctx: ExecutionContext): Promise<void> {
     const stub = getRecDOStub(env);
     ctx.waitUntil(stub.fetch(new Request('http://do-internal/prune', { method: 'POST' })));
   },
 
-  async fetch(request: Request, env: Env, _ctx: ExecutionContext): Promise<Response> {
+  async fetch(request: Request, env: RecWorkerEnv, _ctx: ExecutionContext): Promise<Response> {
     if (request.method === 'OPTIONS') {
       return new Response(null, { status: 204, headers: corsHeaders(request, env) });
     }
@@ -197,4 +199,4 @@ export default {
 
     return new Response('Not Found', { status: 404, headers: corsHeaders(request, env) });
   },
-} satisfies ExportedHandler<Env>;
+} satisfies ExportedHandler<RecWorkerEnv>;
