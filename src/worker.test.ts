@@ -45,7 +45,7 @@ describe('S1 — worker scaffold', () => {
 
   it('OPTIONS preflight → 204 with CORS headers', async () => {
     const headers = new Headers({
-      Origin: 'https://victusfate.github.io',
+      Origin: 'http://localhost:5173',
       'Access-Control-Request-Method': 'POST',
     });
     const request = new Request('http://localhost/interactions', { method: 'OPTIONS', headers });
@@ -53,7 +53,7 @@ describe('S1 — worker scaffold', () => {
     const res = await worker.fetch(request, env, ctx);
     await waitOnExecutionContext(ctx);
     expect(res.status).toBe(204);
-    expect(res.headers.get('Access-Control-Allow-Origin')).toBe('https://victusfate.github.io');
+    expect(res.headers.get('Access-Control-Allow-Origin')).toBe('http://localhost:5173');
   });
 
   it('unknown path → 404', async () => {

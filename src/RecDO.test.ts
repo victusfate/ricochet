@@ -224,6 +224,16 @@ describe('S2 — interaction ingestion and popularity', () => {
     const recs = await getRecs('userLegacyMode0001');
     expect(recs.diagnostics.candidateMode).toBe('global');
   });
+
+  it('DO /recs POST rejects non-object JSON body with 400', async () => {
+    const stub = env.REC_DO.get(env.REC_DO.idFromName('global'));
+    const res = await stub.fetch(new Request('http://do-internal/recs/userBadBody0001', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(123),
+    }));
+    expect(res.status).toBe(400);
+  });
 });
 
 // ── S4 — Maintenance prune ────────────────────────────────────────────────────
@@ -254,7 +264,7 @@ describe('S4 — prune old interactions', () => {
     expect(pruneRes.status).toBe(204);
 
     // Clear KV cache so getRecs reflects post-prune DO state
-    await env.REC_STORE.delete(`recs:${userId}`);
+    await env.REC_STORE.delete(`recs:${userId}:limit:50`);
 
     // Article should be gone from recs (item_factors row removed too)
     const after = await getRecs(userId);

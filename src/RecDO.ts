@@ -149,10 +149,13 @@ export class RecDO implements DurableObject {
       if (request.method === 'GET') {
         parsedCandidates = parseCsvCandidates(url.searchParams.get('candidates'));
       } else {
-        let body: RecRankRequest;
+        let body: RecRankRequest | null;
         try {
-          body = await request.json() as RecRankRequest;
+          body = await request.json() as RecRankRequest | null;
         } catch {
+          return Response.json({ ok: false, message: 'Invalid JSON body' }, { status: 400 });
+        }
+        if (body !== null && typeof body !== 'object') {
           return Response.json({ ok: false, message: 'Invalid JSON body' }, { status: 400 });
         }
         const parsed = parseCandidateArticleIds(body?.candidateArticleIds);

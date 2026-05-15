@@ -142,6 +142,7 @@ const ranked = articleIds
 - **Deduplication**: same `(userId, articleId, action)` triple is stored once — safe to retry.
 - **Downvote exclusion**: `articleIds` never contains articles the user has downvoted, regardless of global popularity.
 - **Backward compatibility**: `articleIds` + `generatedAt` are preserved; new observability fields are additive.
+- **CORS integration**: production origins should be passed via `EXTRA_CORS_ORIGINS` by the integrating worker/app; ricochet code defaults to localhost origins for development.
 - **No PII**: `userId` must be an anonymous stable hash. No email, name, or device identifier.
 - **Batch cap**: `POST /interactions` rejects arrays > 200 events with `400`.
 - **Cache**: recommendations are KV-cached for a short TTL; expect up to ~60 s staleness after new interactions.

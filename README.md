@@ -225,6 +225,8 @@ export { default, RecDO } from '@victusfate/ricochet/worker';
 
 The `EXTRA_CORS_ORIGINS` env var accepts a comma-separated list of additional allowed CORS origins (e.g. a custom Cloudflare Pages domain).
 
+Production domains are expected to be configured through `EXTRA_CORS_ORIGINS` by the integrating app/deployment (for example Boomerang `platform-worker`). Ricochet keeps only localhost defaults in code for dev ergonomics.
+
 ## Quick start
 
 ```sh

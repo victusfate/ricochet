@@ -12,9 +12,6 @@ const RATE_LIMIT_WINDOW_MS = 60_000;
 const rateBuckets = new Map<string, { count: number; resetAt: number }>();
 
 const ALLOWED_ORIGINS = [
-  'https://victusfate.github.io',
-  'https://boomerang-news.com',
-  'https://www.boomerang-news.com',
   'http://localhost:5173',
   'http://127.0.0.1:5173',
   'http://localhost:4173',
@@ -170,10 +167,14 @@ async function hashCandidateArticleIds(candidateArticleIds: string[]): Promise<s
   return Array.from(bytes).slice(0, 12).map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
-async function buildRecCacheKey(userId: string, candidateArticleIds?: string[]): Promise<string> {
-  if (!candidateArticleIds) return `recs:${userId}`;
+async function buildRecCacheKey(
+  userId: string,
+  limit: number,
+  candidateArticleIds?: string[],
+): Promise<string> {
+  if (!candidateArticleIds) return `recs:${userId}:limit:${limit}`;
   const poolHash = await hashCandidateArticleIds(candidateArticleIds);
-  return `recs:${userId}:pool:${poolHash}`;
+  return `recs:${userId}:pool:${poolHash}:limit:${limit}`;
 }
 
 function withObservability(
@@ -310,6 +311,7 @@ export default {
 
       const cacheKey = await buildRecCacheKey(
         userId,
+        limit,
         candidateModeProvided ? (candidateArticleIds ?? []) : undefined,
       );
       const cacheLookupStartedAt = Date.now();
