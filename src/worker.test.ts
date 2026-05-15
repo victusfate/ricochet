@@ -181,6 +181,63 @@ describe('S3 — GET /recommendations/:userId', () => {
       undefined, 'https://victusfate.github.io', clientIp);
     expect(limited.status).toBe(429);
   });
+
+  it('POST /recommendations ranks only provided feed-pool IDs', async () => {
+    const userId = 'pool-mode-user-01';
+    const warmId = 'poolwarmarticle001';
+    const coldId = 'poolcoldarticle001';
+    const downvotedId = 'pooldownvoteart01';
+
+    await req('POST', '/interactions', {
+      events: [
+        { ...sampleEvent, userId, articleId: warmId, action: 'save' },
+        { ...sampleEvent, userId, articleId: downvotedId, action: 'downvote' },
+      ],
+    });
+
+    const res = await req('POST', `/recommendations/${userId}`, {
+      candidateArticleIds: [warmId, coldId, downvotedId, coldId],
+      limit: 10,
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json() as {
+      articleIds: string[];
+      scoredArticleIds: Array<{ articleId: string; score: number }>;
+      diagnostics: {
+        candidateMode?: string;
+        candidateCount: number;
+        excludedDownvotes: number;
+        coldItemCount?: number;
+      };
+    };
+
+    expect(body.articleIds).toContain(warmId);
+    expect(body.articleIds).toContain(coldId);
+    expect(body.articleIds).not.toContain(downvotedId);
+    expect(body.scoredArticleIds.map(r => r.articleId)).toEqual(body.articleIds);
+    expect(body.diagnostics.candidateMode).toBe('feed-pool');
+    expect(body.diagnostics.candidateCount).toBe(3);
+    expect(body.diagnostics.excludedDownvotes).toBe(1);
+    expect((body.diagnostics.coldItemCount ?? 0)).toBeGreaterThanOrEqual(1);
+  });
+
+  it('GET /recommendations supports candidates query param', async () => {
+    const userId = 'pool-mode-user-02';
+    const idA = 'querycandarticle01';
+    const idB = 'querycandarticle02';
+    const res = await req('GET', `/recommendations/${userId}?candidates=${idA},${idB}&limit=5`);
+    expect(res.status).toBe(200);
+    const body = await res.json() as { diagnostics: { candidateMode?: string; candidateCount: number } };
+    expect(body.diagnostics.candidateMode).toBe('feed-pool');
+    expect(body.diagnostics.candidateCount).toBe(2);
+  });
+
+  it('POST /recommendations with >500 candidates returns 400', async () => {
+    const userId = 'pool-mode-user-03';
+    const candidateArticleIds = Array.from({ length: 501 }, (_, i) => `c${String(i).padStart(15, '0')}`);
+    const res = await req('POST', `/recommendations/${userId}`, { candidateArticleIds, limit: 50 });
+    expect(res.status).toBe(400);
+  });
 });
 
 // ── S5 — KV cache ─────────────────────────────────────────────────────────────
@@ -269,5 +326,21 @@ describe('S5 — KV cache for /recommendations/:userId', () => {
     expect(typeof body.trace).toBe('object');
     expect(typeof body.cache).toBe('object');
     expect(typeof body.timingMs).toBe('object');
+  });
+
+  it('feed-pool cache key is distinct from legacy global key', async () => {
+    const userId = 'kv-pool-key-user';
+    const globalRes = await req('GET', `/recommendations/${userId}`);
+    const globalBody = await globalRes.json() as { cache: { key: string; status: string } };
+    expect(globalBody.cache.status).toBe('miss');
+
+    const poolRes = await req('POST', `/recommendations/${userId}`, {
+      candidateArticleIds: ['poolcachearticle001', 'poolcachearticle002'],
+      limit: 10,
+    });
+    const poolBody = await poolRes.json() as { cache: { key: string; status: string } };
+    expect(poolBody.cache.status).toBe('miss');
+    expect(poolBody.cache.key).toMatch(/^recs:kv-pool-key-user:pool:/);
+    expect(poolBody.cache.key).not.toBe(globalBody.cache.key);
   });
 });

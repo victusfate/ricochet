@@ -37,6 +37,26 @@ async function getRecs(userId: string, limit = 50): Promise<RecResponse> {
   return res.json() as Promise<RecResponse>;
 }
 
+async function getRecsForCandidates(
+  userId: string,
+  candidateArticleIds: string[],
+  limit = 50,
+): Promise<RecResponse> {
+  const res = await SELF.fetch(
+    `http://localhost/recommendations/${encodeURIComponent(userId)}`,
+    {
+      method: 'POST',
+      headers: {
+        Origin: 'https://victusfate.github.io',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ candidateArticleIds, limit }),
+    },
+  );
+  expect(res.status).toBe(200);
+  return res.json() as Promise<RecResponse>;
+}
+
 // ── S2 — Interaction storage and popularity ───────────────────────────────────
 
 describe('S2 — interaction ingestion and popularity', () => {
@@ -168,6 +188,41 @@ describe('S2 — interaction ingestion and popularity', () => {
     expect(recs.diagnostics.limit).toBe(10);
     expect(recs.diagnostics.returnedCount).toBe(recs.articleIds.length);
     expect(recs.diagnostics.rankedCount).toBeGreaterThanOrEqual(recs.diagnostics.returnedCount);
+  });
+
+  it('feed-pool mode keeps cold items and excludes downvoted items', async () => {
+    const userId = 'userPoolMode00001';
+    const warmId = 'poolmoderecwarm01';
+    const coldId = 'poolmodereccold01';
+    const downvotedId = 'poolmodedownvote1';
+    await ingest([
+      makeEvent({ userId, articleId: warmId, action: 'save' }),
+      makeEvent({ userId, articleId: downvotedId, action: 'downvote' }),
+    ]);
+
+    const recs = await getRecsForCandidates(userId, [warmId, coldId, downvotedId, coldId], 10);
+    expect(recs.articleIds).toContain(warmId);
+    expect(recs.articleIds).toContain(coldId);
+    expect(recs.articleIds).not.toContain(downvotedId);
+    expect(recs.diagnostics.candidateMode).toBe('feed-pool');
+    expect(recs.diagnostics.candidateCount).toBe(3);
+    expect(recs.diagnostics.excludedDownvotes).toBe(1);
+    expect((recs.diagnostics.coldItemCount ?? 0)).toBeGreaterThanOrEqual(1);
+    expect((recs.diagnostics.warmItemCount ?? 0)).toBeGreaterThanOrEqual(1);
+  });
+
+  it('feed-pool mode with empty candidates returns 200 and empty lists', async () => {
+    const recs = await getRecsForCandidates('userPoolModeEmpty1', [], 10);
+    expect(recs.articleIds).toEqual([]);
+    expect(recs.scoredArticleIds).toEqual([]);
+    expect(recs.diagnostics.candidateMode).toBe('feed-pool');
+    expect(recs.diagnostics.candidateCount).toBe(0);
+    expect(recs.diagnostics.returnedCount).toBe(0);
+  });
+
+  it('legacy mode remains global when candidates are omitted', async () => {
+    const recs = await getRecs('userLegacyMode0001');
+    expect(recs.diagnostics.candidateMode).toBe('global');
   });
 });
 
@@ -360,7 +415,8 @@ describe('S4 — scoring and recommendations', () => {
       makeEvent({ userId, articleId: readId,  action: 'read' }),
     ]);
 
-    const recs = await getRecs(userId);
+    // Pool-scoped ranking avoids noise from unrelated globally popular items.
+    const recs = await getRecsForCandidates(userId, [savedId, readId], 50);
     expect(recs.articleIds.indexOf(savedId)).toBeLessThan(recs.articleIds.indexOf(readId));
   });
 
