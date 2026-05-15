@@ -8,7 +8,8 @@ Install: `npm install github:victusfate/ricochet`
 |--------|------|---------------|----------|
 | `GET` | `/health` | — | `200 OK` |
 | `POST` | `/interactions` | `InteractionEvent[]` (max 200) | `200` or `400` |
-| `GET` | `/recommendations/:userId` | — | `RecResponse` (JSON) |
+| `GET` | `/recommendations/:userId` | Optional `limit`, `candidates=id1,id2,...` | `RecResponse` (JSON) |
+| `POST` | `/recommendations/:userId` | `RecRankRequest` | `RecResponse` (JSON) |
 
 ## Types
 
@@ -35,10 +36,13 @@ interface RecResponse {
     model: 'biased-mf';
     modelVersion: string;
     factorCount: number;
+    candidateMode?: 'feed-pool' | 'global';
     candidateCount: number;
     rankedCount: number;
     returnedCount: number;
     excludedDownvotes: number;
+    coldItemCount?: number;
+    warmItemCount?: number;
     coldStart: boolean;
     limit: number;
   };
@@ -61,9 +65,17 @@ interface RecResponse {
 }
 ```
 
+```ts
+interface RecRankRequest {
+  candidateArticleIds?: string[]; // when present, rank only this caller feed-pool
+  limit?: number;                  // default 50, max 500
+}
+```
+
 ## Observability fields
 
 `/recommendations/:userId` always returns observability fields alongside ranked IDs.
+When candidates are provided (`POST` body or `GET ?candidates=`), ranking is pool-scoped.
 
 ```json
 {
@@ -130,6 +142,7 @@ const ranked = articleIds
 - **Deduplication**: same `(userId, articleId, action)` triple is stored once — safe to retry.
 - **Downvote exclusion**: `articleIds` never contains articles the user has downvoted, regardless of global popularity.
 - **Backward compatibility**: `articleIds` + `generatedAt` are preserved; new observability fields are additive.
+- **CORS integration**: production origins should be passed via `EXTRA_CORS_ORIGINS` by the integrating worker/app; ricochet code defaults to localhost origins for development.
 - **No PII**: `userId` must be an anonymous stable hash. No email, name, or device identifier.
 - **Batch cap**: `POST /interactions` rejects arrays > 200 events with `400`.
 - **Cache**: recommendations are KV-cached for a short TTL; expect up to ~60 s staleness after new interactions.

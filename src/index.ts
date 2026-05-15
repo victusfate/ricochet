@@ -2,7 +2,7 @@ import { RecDO } from './RecDO';
 export { RecDO };
 export type { RecWorkerEnv } from './worker-env';
 import type { RecWorkerEnv } from './worker-env';
-import type { RecCoreResponse, RecResponse } from './types';
+import type { RecCoreResponse, RecRankRequest, RecResponse } from './types';
 import { isValidEvent } from './validation';
 
 const RATE_LIMIT_INTERACTIONS_MAX = 60;
@@ -12,9 +12,6 @@ const RATE_LIMIT_WINDOW_MS = 60_000;
 const rateBuckets = new Map<string, { count: number; resetAt: number }>();
 
 const ALLOWED_ORIGINS = [
-  'https://victusfate.github.io',
-  'https://boomerang-news.com',
-  'https://www.boomerang-news.com',
   'http://localhost:5173',
   'http://127.0.0.1:5173',
   'http://localhost:4173',
@@ -106,13 +103,78 @@ function checkRateLimit(
 }
 
 const MAX_BATCH_SIZE = 200;
-const MAX_LIMIT = 200;
+const MAX_LIMIT = 500;
 const DEFAULT_LIMIT = 50;
 const CACHE_TTL_SECONDS = 300;
+const MAX_CANDIDATES = 500;
 
 function getRecDOStub(env: RecWorkerEnv): DurableObjectStub {
   const id = env.REC_DO.idFromName('global');
   return env.REC_DO.get(id);
+}
+
+function parseLimit(rawLimit: unknown): number {
+  if (typeof rawLimit === 'number' && Number.isFinite(rawLimit)) {
+    return Math.max(1, Math.min(MAX_LIMIT, Math.trunc(rawLimit)));
+  }
+  if (typeof rawLimit === 'string') {
+    const parsed = parseInt(rawLimit, 10);
+    if (!Number.isNaN(parsed)) return Math.max(1, Math.min(MAX_LIMIT, parsed));
+  }
+  return DEFAULT_LIMIT;
+}
+
+function parseCandidateArticleIds(value: unknown): { ids?: string[]; message?: string } {
+  if (value === undefined) return {};
+  if (!Array.isArray(value)) {
+    return { message: 'candidateArticleIds must be an array of non-empty strings' };
+  }
+  const deduped: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of value) {
+    if (typeof raw !== 'string') return { message: 'candidateArticleIds must contain only strings' };
+    const id = raw.trim();
+    if (!id) return { message: 'candidateArticleIds must not contain empty IDs' };
+    if (seen.has(id)) continue;
+    seen.add(id);
+    deduped.push(id);
+  }
+  if (deduped.length > MAX_CANDIDATES) {
+    return { message: `candidateArticleIds exceeds max ${MAX_CANDIDATES}` };
+  }
+  return { ids: deduped };
+}
+
+function parseCandidatesCsv(raw: string | null): string[] | undefined {
+  if (raw === null) return undefined;
+  if (!raw.trim()) return [];
+  const deduped: string[] = [];
+  const seen = new Set<string>();
+  for (const part of raw.split(',')) {
+    const id = part.trim();
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    deduped.push(id);
+  }
+  return deduped;
+}
+
+async function hashCandidateArticleIds(candidateArticleIds: string[]): Promise<string> {
+  const sorted = [...candidateArticleIds].sort();
+  const payload = new TextEncoder().encode(sorted.join(','));
+  const digest = await crypto.subtle.digest('SHA-256', payload);
+  const bytes = new Uint8Array(digest);
+  return Array.from(bytes).slice(0, 12).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function buildRecCacheKey(
+  userId: string,
+  limit: number,
+  candidateArticleIds?: string[],
+): Promise<string> {
+  if (!candidateArticleIds) return `recs:${userId}:limit:${limit}`;
+  const poolHash = await hashCandidateArticleIds(candidateArticleIds);
+  return `recs:${userId}:pool:${poolHash}:limit:${limit}`;
 }
 
 function withObservability(
@@ -199,18 +261,59 @@ export default {
       return json({ ok: true, queued: valid.length }, request, env);
     }
 
-    // GET /recommendations/:userId
+    // GET/POST /recommendations/:userId
     const recsMatch = pathname.match(/^\/recommendations\/(.+)$/);
-    if (recsMatch && request.method === 'GET') {
+    if (recsMatch && (request.method === 'GET' || request.method === 'POST')) {
       const requestStartedAt = Date.now();
       const limited = checkRateLimit(request, 'recs', RATE_LIMIT_RECS_MAX);
       if (limited.limited) return tooManyRequests(request, env, limited.retryAfterSeconds);
 
       const userId = recsMatch[1];
-      const rawLimit = parseInt(url.searchParams.get('limit') ?? String(DEFAULT_LIMIT), 10);
-      const limit = Math.min(isNaN(rawLimit) || rawLimit < 1 ? DEFAULT_LIMIT : rawLimit, MAX_LIMIT);
+      let limit = parseLimit(url.searchParams.get('limit'));
+      let candidateArticleIds: string[] | undefined;
+      let candidateModeProvided = false;
 
-      const cacheKey = `recs:${userId}`;
+      if (request.method === 'GET') {
+        candidateModeProvided = url.searchParams.has('candidates');
+        candidateArticleIds = parseCandidatesCsv(url.searchParams.get('candidates'));
+      } else {
+        let body: RecRankRequest | null;
+        try {
+          body = await request.json() as RecRankRequest | null;
+        } catch {
+          return json({ ok: false, message: 'Invalid JSON body' }, request, env, { status: 400 });
+        }
+        if (body !== null && typeof body !== 'object') {
+          return json(
+            { ok: false, message: 'Invalid JSON body' },
+            request,
+            env,
+            { status: 400 },
+          );
+        }
+        candidateModeProvided = body !== null && Object.prototype.hasOwnProperty.call(body, 'candidateArticleIds');
+        const parsed = parseCandidateArticleIds(body?.candidateArticleIds);
+        if (parsed.message) {
+          return json({ ok: false, message: parsed.message }, request, env, { status: 400 });
+        }
+        candidateArticleIds = parsed.ids;
+        if (body?.limit !== undefined) limit = parseLimit(body.limit);
+      }
+
+      if (candidateArticleIds && candidateArticleIds.length > MAX_CANDIDATES) {
+        return json(
+          { ok: false, message: `candidateArticleIds exceeds max ${MAX_CANDIDATES}` },
+          request,
+          env,
+          { status: 400 },
+        );
+      }
+
+      const cacheKey = await buildRecCacheKey(
+        userId,
+        limit,
+        candidateModeProvided ? (candidateArticleIds ?? []) : undefined,
+      );
       const cacheLookupStartedAt = Date.now();
       const cached = await env.REC_STORE.get(cacheKey, 'json') as RecCoreResponse | null;
       const cacheLookupMs = Date.now() - cacheLookupStartedAt;
@@ -236,9 +339,26 @@ export default {
 
       const stub = getRecDOStub(env);
       const doFetchStartedAt = Date.now();
-      const doRes = await stub.fetch(
-        new Request(`http://do-internal/recs/${encodeURIComponent(userId)}?limit=${limit}`),
-      );
+      const doRes = candidateModeProvided
+        ? await stub.fetch(
+          new Request(`http://do-internal/recs/${encodeURIComponent(userId)}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ candidateArticleIds: candidateArticleIds ?? [], limit }),
+          }),
+        )
+        : await stub.fetch(
+          new Request(`http://do-internal/recs/${encodeURIComponent(userId)}?limit=${limit}`),
+        );
+      if (!doRes.ok) {
+        const errorText = await doRes.text();
+        return json(
+          { ok: false, message: errorText || 'Failed to rank recommendations' },
+          request,
+          env,
+          { status: doRes.status },
+        );
+      }
       const recBody = await doRes.json() as RecCoreResponse;
       const doFetchMs = Date.now() - doFetchStartedAt;
 

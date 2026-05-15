@@ -1,4 +1,6 @@
-import type { InteractionEvent, RecCoreResponse, ScoredArticle } from './types';
+import type {
+  InteractionEvent, RecCoreResponse, RecRankRequest, RecDiagnostics, ScoredArticle,
+} from './types';
 import type { RecWorkerEnv } from './worker-env';
 import {
   ACTION_RATING, DEFAULT_MF_PARAMS, newFactorRow, zeroFactorRow,
@@ -8,6 +10,10 @@ import type { FactorRow } from './scoring';
 
 const SQLITE_RETENTION_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
 const MF_PARAMS = DEFAULT_MF_PARAMS;
+const DEFAULT_LIMIT = 50;
+const MAX_LIMIT = 500;
+const GLOBAL_CANDIDATE_LIMIT = 200;
+const MAX_CANDIDATES = 500;
 
 type FactorsDbRow = {
   bias: number;
@@ -21,6 +27,57 @@ function dbRowToFactorRow(row: FactorsDbRow): FactorRow {
     v: [row.v0, row.v1, row.v2, row.v3, row.v4,
         row.v5, row.v6, row.v7, row.v8, row.v9],
   };
+}
+
+function parseLimit(value: unknown): number {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return Math.max(1, Math.min(MAX_LIMIT, Math.trunc(value)));
+  }
+  if (typeof value === 'string') {
+    const parsed = parseInt(value, 10);
+    if (!Number.isNaN(parsed)) return Math.max(1, Math.min(MAX_LIMIT, parsed));
+  }
+  return DEFAULT_LIMIT;
+}
+
+function parseCandidateArticleIds(value: unknown): { ids?: string[]; message?: string } {
+  if (value === undefined) return {};
+  if (!Array.isArray(value)) {
+    return { message: 'candidateArticleIds must be an array of non-empty strings' };
+  }
+  const deduped: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of value) {
+    if (typeof raw !== 'string') {
+      return { message: 'candidateArticleIds must contain only strings' };
+    }
+    const id = raw.trim();
+    if (!id) {
+      return { message: 'candidateArticleIds must not contain empty IDs' };
+    }
+    if (!seen.has(id)) {
+      seen.add(id);
+      deduped.push(id);
+    }
+  }
+  if (deduped.length > MAX_CANDIDATES) {
+    return { message: `candidateArticleIds exceeds max ${MAX_CANDIDATES}` };
+  }
+  return { ids: deduped };
+}
+
+function parseCsvCandidates(raw: string | null): string[] | undefined {
+  if (raw === null) return undefined;
+  if (!raw.trim()) return [];
+  const deduped: string[] = [];
+  const seen = new Set<string>();
+  for (const part of raw.split(',')) {
+    const id = part.trim();
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    deduped.push(id);
+  }
+  return deduped;
 }
 
 export class RecDO implements DurableObject {
@@ -84,11 +141,41 @@ export class RecDO implements DurableObject {
     }
 
     const recsMatch = url.pathname.match(/^\/recs\/(.+)$/);
-    if (recsMatch && request.method === 'GET') {
+    if (recsMatch && (request.method === 'GET' || request.method === 'POST')) {
       const userId = decodeURIComponent(recsMatch[1]);
-      const limit  = parseInt(url.searchParams.get('limit') ?? '50', 10);
-      const candidates = this.getTopCandidates(200);
-      const scored = this.score(userId, candidates);
+      let limit = parseLimit(url.searchParams.get('limit'));
+      let parsedCandidates: string[] | undefined;
+
+      if (request.method === 'GET') {
+        parsedCandidates = parseCsvCandidates(url.searchParams.get('candidates'));
+      } else {
+        let body: RecRankRequest | null;
+        try {
+          body = await request.json() as RecRankRequest | null;
+        } catch {
+          return Response.json({ ok: false, message: 'Invalid JSON body' }, { status: 400 });
+        }
+        if (body !== null && typeof body !== 'object') {
+          return Response.json({ ok: false, message: 'Invalid JSON body' }, { status: 400 });
+        }
+        const parsed = parseCandidateArticleIds(body?.candidateArticleIds);
+        if (parsed.message) {
+          return Response.json({ ok: false, message: parsed.message }, { status: 400 });
+        }
+        parsedCandidates = parsed.ids;
+        if (body?.limit !== undefined) limit = parseLimit(body.limit);
+      }
+
+      if (parsedCandidates && parsedCandidates.length > MAX_CANDIDATES) {
+        return Response.json(
+          { ok: false, message: `candidateArticleIds exceeds max ${MAX_CANDIDATES}` },
+          { status: 400 },
+        );
+      }
+
+      const candidateMode: RecDiagnostics['candidateMode'] = parsedCandidates ? 'feed-pool' : 'global';
+      const candidates = parsedCandidates ?? this.getTopCandidates(GLOBAL_CANDIDATE_LIMIT);
+      const scored = this.scoreCandidates(userId, candidates);
       const topScored = scored.ranked.slice(0, limit);
       const body: RecCoreResponse = {
         articleIds: topScored.map(r => r.articleId),
@@ -98,10 +185,13 @@ export class RecDO implements DurableObject {
           model: 'biased-mf',
           modelVersion: 'v1',
           factorCount: MF_PARAMS.nFactors,
+          candidateMode,
           candidateCount: candidates.length,
           rankedCount: scored.ranked.length,
           returnedCount: topScored.length,
           excludedDownvotes: scored.excludedDownvotes,
+          coldItemCount: scored.coldItemCount,
+          warmItemCount: scored.warmItemCount,
           coldStart: scored.coldStart,
           limit,
         },
@@ -254,13 +344,16 @@ export class RecDO implements DurableObject {
     )].map(r => r.article_id);
   }
 
-  score(
+  scoreCandidates(
     userId: string,
     candidateIds: string[],
-  ): { ranked: ScoredArticle[]; excludedDownvotes: number; coldStart: boolean } {
-    if (candidateIds.length === 0) {
-      return { ranked: [], excludedDownvotes: 0, coldStart: true };
-    }
+  ): {
+    ranked: ScoredArticle[];
+    excludedDownvotes: number;
+    coldStart: boolean;
+    coldItemCount: number;
+    warmItemCount: number;
+  } {
 
     type GsRow = { mean: number };
     const [gs] = [...this.state.storage.sql.exec<GsRow>(
@@ -285,26 +378,50 @@ export class RecDO implements DurableObject {
       )].map(r => r.article_id),
     );
 
-    const placeholders = candidateIds.map(() => '?').join(',');
     type ItemRow = FactorsDbRow & { article_id: string };
-    const itemRows = [...this.state.storage.sql.exec<ItemRow>(
-      `SELECT article_id,bias,v0,v1,v2,v3,v4,v5,v6,v7,v8,v9
-       FROM item_factors WHERE article_id IN (${placeholders})`,
-      ...candidateIds,
-    )];
+    const itemRows = candidateIds.length === 0
+      ? []
+      : [...this.state.storage.sql.exec<ItemRow>(
+        `SELECT article_id,bias,v0,v1,v2,v3,v4,v5,v6,v7,v8,v9
+         FROM item_factors WHERE article_id IN (${candidateIds.map(() => '?').join(',')})`,
+        ...candidateIds,
+      )];
+    const itemById = new Map(itemRows.map(row => [row.article_id, row]));
+    const coldItem = zeroFactorRow(MF_PARAMS);
 
-    const ranked = itemRows
-      .filter(r => !downvoted.has(r.article_id))
-      .map((r): ScoredArticle => ({
-        articleId: r.article_id,
-        score: mfPredict(globalMean, uFactor, dbRowToFactorRow(r)),
-      }))
-      .sort((a, b) => b.score - a.score);
+    let excludedDownvotes = 0;
+    let coldItemCount = 0;
+    let warmItemCount = 0;
+    const ranked: ScoredArticle[] = [];
+
+    for (const candidateId of candidateIds) {
+      if (downvoted.has(candidateId)) {
+        excludedDownvotes += 1;
+        continue;
+      }
+      const row = itemById.get(candidateId);
+      if (row) {
+        warmItemCount += 1;
+        ranked.push({
+          articleId: candidateId,
+          score: mfPredict(globalMean, uFactor, dbRowToFactorRow(row)),
+        });
+        continue;
+      }
+      coldItemCount += 1;
+      ranked.push({
+        articleId: candidateId,
+        score: mfPredict(globalMean, uFactor, coldItem),
+      });
+    }
+    ranked.sort((a, b) => b.score - a.score || a.articleId.localeCompare(b.articleId));
 
     return {
       ranked,
-      excludedDownvotes: itemRows.length - ranked.length,
+      excludedDownvotes,
       coldStart,
+      coldItemCount,
+      warmItemCount,
     };
   }
 

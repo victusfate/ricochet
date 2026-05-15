@@ -18,7 +18,8 @@ and a standalone npm library.
 |--------|------|---------------|----------|
 | `GET` | `/health` | — | `200 OK` |
 | `POST` | `/interactions` | `InteractionEvent[]` (max 200) | `200` or `400` |
-| `GET` | `/recommendations/:userId` | — | `RecResponse` (JSON) |
+| `GET` | `/recommendations/:userId` | Optional `limit`, `candidates=id1,id2,...` | `RecResponse` (JSON) |
+| `POST` | `/recommendations/:userId` | `RecRankRequest` | `RecResponse` (JSON) |
 
 ### Key contracts
 
@@ -53,10 +54,13 @@ interface RecResponse {
     model: 'biased-mf';
     modelVersion: string;
     factorCount: number;
+    candidateMode?: 'feed-pool' | 'global';
     candidateCount: number;
     rankedCount: number;
     returnedCount: number;
     excludedDownvotes: number;
+    coldItemCount?: number;
+    warmItemCount?: number;
     coldStart: boolean;
     limit: number;
   };
@@ -79,9 +83,17 @@ interface RecResponse {
 }
 ```
 
+```ts
+interface RecRankRequest {
+  candidateArticleIds?: string[]; // when present, rank only this caller feed-pool
+  limit?: number;                  // default 50, max 500
+}
+```
+
 ## Observability fields
 
 `/recommendations/:userId` always returns observability fields alongside ranked IDs.
+When candidates are provided (`POST` body or `GET ?candidates=`), ranking is pool-scoped.
 
 ```json
 {
@@ -212,6 +224,8 @@ export { default, RecDO } from '@victusfate/ricochet/worker';
 | Optional env var | `string` | `EXTRA_CORS_ORIGINS` |
 
 The `EXTRA_CORS_ORIGINS` env var accepts a comma-separated list of additional allowed CORS origins (e.g. a custom Cloudflare Pages domain).
+
+Production domains are expected to be configured through `EXTRA_CORS_ORIGINS` by the integrating app/deployment (for example Boomerang `platform-worker`). Ricochet keeps only localhost defaults in code for dev ergonomics.
 
 ## Quick start
 

@@ -38,14 +38,23 @@ export interface ScoredArticle {
   score: number;
 }
 
+/** Request body for feed-pool ranking (POST /recommendations/:userId). */
+export interface RecRankRequest {
+  candidateArticleIds?: string[];
+  limit?: number;
+}
+
 export interface RecDiagnostics {
   model: 'biased-mf';
   modelVersion: string;
   factorCount: number;
+  candidateMode?: 'feed-pool' | 'global';
   candidateCount: number;
   rankedCount: number;
   returnedCount: number;
   excludedDownvotes: number;
+  coldItemCount?: number;
+  warmItemCount?: number;
   coldStart: boolean;
   limit: number;
 }
