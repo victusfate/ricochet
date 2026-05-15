@@ -1,3 +1,9 @@
+## [1.2.2](https://github.com/victusfate/ricochet/compare/v1.2.1...v1.2.2) (2026-05-15)
+
+### Bug Fixes
+
+* expose recommendation candidate cap as shared constant ([10fcea9](https://github.com/victusfate/ricochet/commit/10fcea9244316a873da26111a99a39002702c14f))
+
 ## [1.2.1](https://github.com/victusfate/ricochet/compare/v1.2.0...v1.2.1) (2026-05-15)
 
 ### Bug Fixes
