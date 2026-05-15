@@ -1,3 +1,9 @@
+## [1.2.0](https://github.com/victusfate/ricochet/compare/v1.1.0...v1.2.0) (2026-05-15)
+
+### Features
+
+* support feed-pool candidate ranking for recommendations ([b55f61d](https://github.com/victusfate/ricochet/commit/b55f61dbddfe44acec98fe1c2b2a741448f99281))
+
 ## [1.1.0](https://github.com/victusfate/ricochet/compare/v1.0.0...v1.1.0) (2026-05-15)
 
 ### Features

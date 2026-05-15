@@ -1,6 +1,6 @@
 {
   "name": "@victusfate/ricochet",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Biased Matrix Factorization recommendation engine — Cloudflare Worker + standalone scoring library",
   "license": "MIT",
   "author": "victusfate",
