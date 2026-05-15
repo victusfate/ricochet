@@ -3,6 +3,7 @@ export { RecDO };
 export type { RecWorkerEnv } from './worker-env';
 import type { RecWorkerEnv } from './worker-env';
 import type { RecCoreResponse, RecRankRequest, RecResponse } from './types';
+import { REC_MAX_CANDIDATES } from './types';
 import { isValidEvent } from './validation';
 
 const RATE_LIMIT_INTERACTIONS_MAX = 60;
@@ -106,7 +107,6 @@ const MAX_BATCH_SIZE = 200;
 const MAX_LIMIT = 500;
 const DEFAULT_LIMIT = 50;
 const CACHE_TTL_SECONDS = 300;
-const MAX_CANDIDATES = 100;
 
 function getRecDOStub(env: RecWorkerEnv): DurableObjectStub {
   const id = env.REC_DO.idFromName('global');
@@ -139,8 +139,8 @@ function parseCandidateArticleIds(value: unknown): { ids?: string[]; message?: s
     seen.add(id);
     deduped.push(id);
   }
-  if (deduped.length > MAX_CANDIDATES) {
-    return { message: `Too many candidateArticleIds in request; max ${MAX_CANDIDATES}` };
+  if (deduped.length > REC_MAX_CANDIDATES) {
+    return { message: `Too many candidateArticleIds in request; max ${REC_MAX_CANDIDATES}` };
   }
   return { ids: deduped };
 }
@@ -300,9 +300,9 @@ export default {
         if (body?.limit !== undefined) limit = parseLimit(body.limit);
       }
 
-      if (candidateArticleIds && candidateArticleIds.length > MAX_CANDIDATES) {
+      if (candidateArticleIds && candidateArticleIds.length > REC_MAX_CANDIDATES) {
         return json(
-          { ok: false, message: `Too many candidateArticleIds in request; max ${MAX_CANDIDATES}` },
+          { ok: false, message: `Too many candidateArticleIds in request; max ${REC_MAX_CANDIDATES}` },
           request,
           env,
           { status: 400 },

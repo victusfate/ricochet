@@ -1,6 +1,7 @@
 import type {
   InteractionEvent, RecCoreResponse, RecRankRequest, RecDiagnostics, ScoredArticle,
 } from './types';
+import { REC_MAX_CANDIDATES } from './types';
 import type { RecWorkerEnv } from './worker-env';
 import {
   ACTION_RATING, DEFAULT_MF_PARAMS, newFactorRow, zeroFactorRow,
@@ -13,7 +14,6 @@ const MF_PARAMS = DEFAULT_MF_PARAMS;
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 500;
 const GLOBAL_CANDIDATE_LIMIT = 200;
-const MAX_CANDIDATES = 100;
 
 type FactorsDbRow = {
   bias: number;
@@ -60,8 +60,8 @@ function parseCandidateArticleIds(value: unknown): { ids?: string[]; message?: s
       deduped.push(id);
     }
   }
-  if (deduped.length > MAX_CANDIDATES) {
-    return { message: `Too many candidateArticleIds in request; max ${MAX_CANDIDATES}` };
+  if (deduped.length > REC_MAX_CANDIDATES) {
+    return { message: `Too many candidateArticleIds in request; max ${REC_MAX_CANDIDATES}` };
   }
   return { ids: deduped };
 }
@@ -166,9 +166,9 @@ export class RecDO implements DurableObject {
         if (body?.limit !== undefined) limit = parseLimit(body.limit);
       }
 
-      if (parsedCandidates && parsedCandidates.length > MAX_CANDIDATES) {
+      if (parsedCandidates && parsedCandidates.length > REC_MAX_CANDIDATES) {
         return Response.json(
-          { ok: false, message: `Too many candidateArticleIds in request; max ${MAX_CANDIDATES}` },
+          { ok: false, message: `Too many candidateArticleIds in request; max ${REC_MAX_CANDIDATES}` },
           { status: 400 },
         );
       }

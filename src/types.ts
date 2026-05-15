@@ -27,6 +27,9 @@ export interface InteractionEvent {
   ts:        number;   // epoch ms
 }
 
+// Shared request cap for feed-pool ranking candidates.
+export const REC_MAX_CANDIDATES = 100;
+
 /**
  * Response from GET /recommendations/:userId.
  * Backward-compatible contract:
