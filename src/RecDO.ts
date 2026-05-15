@@ -1,4 +1,4 @@
-import type { InteractionEvent } from './types';
+import type { InteractionEvent, RecCoreResponse, ScoredArticle } from './types';
 import type { RecWorkerEnv } from './worker-env';
 import {
   ACTION_RATING, DEFAULT_MF_PARAMS, newFactorRow, zeroFactorRow,
@@ -88,9 +88,26 @@ export class RecDO implements DurableObject {
       const userId = decodeURIComponent(recsMatch[1]);
       const limit  = parseInt(url.searchParams.get('limit') ?? '50', 10);
       const candidates = this.getTopCandidates(200);
-      const articleIds = this.score(userId, candidates).slice(0, limit);
+      const scored = this.score(userId, candidates);
+      const topScored = scored.ranked.slice(0, limit);
+      const body: RecCoreResponse = {
+        articleIds: topScored.map(r => r.articleId),
+        generatedAt: Date.now(),
+        scoredArticleIds: topScored,
+        diagnostics: {
+          model: 'biased-mf',
+          modelVersion: 'v1',
+          factorCount: MF_PARAMS.nFactors,
+          candidateCount: candidates.length,
+          rankedCount: scored.ranked.length,
+          returnedCount: topScored.length,
+          excludedDownvotes: scored.excludedDownvotes,
+          coldStart: scored.coldStart,
+          limit,
+        },
+      };
       return new Response(
-        JSON.stringify({ articleIds, generatedAt: Date.now() }),
+        JSON.stringify(body),
         { headers: { 'Content-Type': 'application/json' } },
       );
     }
@@ -237,8 +254,13 @@ export class RecDO implements DurableObject {
     )].map(r => r.article_id);
   }
 
-  score(userId: string, candidateIds: string[]): string[] {
-    if (candidateIds.length === 0) return [];
+  score(
+    userId: string,
+    candidateIds: string[],
+  ): { ranked: ScoredArticle[]; excludedDownvotes: number; coldStart: boolean } {
+    if (candidateIds.length === 0) {
+      return { ranked: [], excludedDownvotes: 0, coldStart: true };
+    }
 
     type GsRow = { mean: number };
     const [gs] = [...this.state.storage.sql.exec<GsRow>(
@@ -252,6 +274,7 @@ export class RecDO implements DurableObject {
       userId,
     )];
     // Cold start: zero vector → score = globalMean + bi_i
+    const coldStart = !uDbRow;
     const uFactor = uDbRow ? dbRowToFactorRow(uDbRow) : zeroFactorRow(MF_PARAMS);
 
     type IdRow = { article_id: string };
@@ -270,11 +293,19 @@ export class RecDO implements DurableObject {
       ...candidateIds,
     )];
 
-    return itemRows
+    const ranked = itemRows
       .filter(r => !downvoted.has(r.article_id))
-      .map(r => ({ id: r.article_id, sc: mfPredict(globalMean, uFactor, dbRowToFactorRow(r)) }))
-      .sort((a, b) => b.sc - a.sc)
-      .map(r => r.id);
+      .map((r): ScoredArticle => ({
+        articleId: r.article_id,
+        score: mfPredict(globalMean, uFactor, dbRowToFactorRow(r)),
+      }))
+      .sort((a, b) => b.score - a.score);
+
+    return {
+      ranked,
+      excludedDownvotes: itemRows.length - ranked.length,
+      coldStart,
+    };
   }
 
   prune(cutoff = Date.now() - SQLITE_RETENTION_MS): void {

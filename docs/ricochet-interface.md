@@ -30,6 +30,76 @@ interface InteractionEvent {
 interface RecResponse {
   articleIds:  string[];  // ranked by personalised score, downvoted articles excluded
   generatedAt: number;    // epoch ms
+  scoredArticleIds: Array<{ articleId: string; score: number }>;
+  diagnostics: {
+    model: 'biased-mf';
+    modelVersion: string;
+    factorCount: number;
+    candidateCount: number;
+    rankedCount: number;
+    returnedCount: number;
+    excludedDownvotes: number;
+    coldStart: boolean;
+    limit: number;
+  };
+  trace: {
+    requestId: string;
+    cfRay?: string;
+  };
+  cache: {
+    status: 'hit' | 'miss' | 'bypass';
+    key: string;
+    ttlSec: number;
+    ageSec: number;
+  };
+  timingMs: {
+    total: number;
+    cacheLookup: number;
+    doFetch: number;
+    cacheWrite: number;
+  };
+}
+```
+
+## Observability fields
+
+`/recommendations/:userId` always returns observability fields alongside ranked IDs.
+
+```json
+{
+  "articleIds": ["a3f1c2d4b5e60718", "b4e2d3c4a5f60719"],
+  "generatedAt": 1778855365123,
+  "scoredArticleIds": [
+    { "articleId": "a3f1c2d4b5e60718", "score": 1.7421 },
+    { "articleId": "b4e2d3c4a5f60719", "score": 1.3396 }
+  ],
+  "diagnostics": {
+    "model": "biased-mf",
+    "modelVersion": "v1",
+    "factorCount": 10,
+    "candidateCount": 200,
+    "rankedCount": 187,
+    "returnedCount": 50,
+    "excludedDownvotes": 13,
+    "coldStart": false,
+    "limit": 50
+  },
+  "trace": {
+    "requestId": "2f4b1e51-1835-4561-95eb-40dc8bd4ddcd",
+    "cfRay": "8c2a6d0f4b8a1234-IAD"
+  },
+  "cache": {
+    "status": "hit",
+    "key": "recs:user0000000000001",
+    "ttlSec": 300,
+    "ageSec": 42
+  },
+  "timingMs": {
+    "total": 7,
+    "cacheLookup": 2,
+    "doFetch": 0,
+    "cacheWrite": 0
+  }
 }
 ```
 
@@ -59,6 +129,7 @@ const ranked = articleIds
 
 - **Deduplication**: same `(userId, articleId, action)` triple is stored once — safe to retry.
 - **Downvote exclusion**: `articleIds` never contains articles the user has downvoted, regardless of global popularity.
+- **Backward compatibility**: `articleIds` + `generatedAt` are preserved; new observability fields are additive.
 - **No PII**: `userId` must be an anonymous stable hash. No email, name, or device identifier.
 - **Batch cap**: `POST /interactions` rejects arrays > 200 events with `400`.
 - **Cache**: recommendations are KV-cached for a short TTL; expect up to ~60 s staleness after new interactions.

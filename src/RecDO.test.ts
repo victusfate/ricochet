@@ -1,6 +1,6 @@
 import { SELF, env } from 'cloudflare:test';
 import { describe, it, expect } from 'vitest';
-import type { InteractionEvent, RecResponse } from './types';
+import type { InteractionEvent, RecCoreResponse, RecResponse } from './types';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -70,7 +70,7 @@ describe('S2 — interaction ingestion and popularity', () => {
     const recsRes = await stub.fetch(
       new Request(`http://do-internal/recs/${userId}?limit=50`),
     );
-    const data = await recsRes.json() as RecResponse;
+    const data = await recsRes.json() as RecCoreResponse;
 
     // Article should still be in recs
     expect(data.articleIds).toContain(articleId);
@@ -91,7 +91,7 @@ describe('S2 — interaction ingestion and popularity', () => {
     const recs2Res = await doStub.fetch(
       new Request(`http://do-internal/recs/${userId}?limit=50`),
     );
-    const recs2 = await recs2Res.json() as RecResponse;
+    const recs2 = await recs2Res.json() as RecCoreResponse;
     expect(recs2.articleIds.indexOf(upvotedId)).toBeLessThan(
       recs2.articleIds.indexOf(articleId),
     );
@@ -150,6 +150,24 @@ describe('S2 — interaction ingestion and popularity', () => {
     const after = Date.now();
     expect(recs.generatedAt).toBeGreaterThanOrEqual(before);
     expect(recs.generatedAt).toBeLessThanOrEqual(after);
+  });
+
+  it('returns scoredArticleIds + diagnostics aligned to articleIds', async () => {
+    const userId = 'userObs000000001';
+    const articleA = 'obsarticleA000001';
+    const articleB = 'obsarticleB000001';
+    await ingest([
+      makeEvent({ userId, articleId: articleA, action: 'save' }),
+      makeEvent({ userId, articleId: articleB, action: 'read' }),
+    ]);
+
+    const recs = await getRecs(userId, 10);
+    expect(recs.scoredArticleIds.map(r => r.articleId)).toEqual(recs.articleIds);
+    expect(recs.scoredArticleIds.every(r => typeof r.score === 'number')).toBe(true);
+    expect(recs.diagnostics.model).toBe('biased-mf');
+    expect(recs.diagnostics.limit).toBe(10);
+    expect(recs.diagnostics.returnedCount).toBe(recs.articleIds.length);
+    expect(recs.diagnostics.rankedCount).toBeGreaterThanOrEqual(recs.diagnostics.returnedCount);
   });
 });
 

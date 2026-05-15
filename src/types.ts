@@ -29,12 +29,59 @@ export interface InteractionEvent {
 
 /**
  * Response from GET /recommendations/:userId.
- * articleIds are ordered by global popularity score (desc), with the requesting
- * user's downvoted articles excluded.
+ * Backward-compatible contract:
+ * - articleIds + generatedAt remain stable for existing consumers.
+ * - scoredArticleIds + diagnostics provide optional observability into CF ranking.
  */
-export interface RecResponse {
+export interface ScoredArticle {
+  articleId: string;
+  score: number;
+}
+
+export interface RecDiagnostics {
+  model: 'biased-mf';
+  modelVersion: string;
+  factorCount: number;
+  candidateCount: number;
+  rankedCount: number;
+  returnedCount: number;
+  excludedDownvotes: number;
+  coldStart: boolean;
+  limit: number;
+}
+
+export interface RecCoreResponse {
   articleIds:  string[];  // ordered; client filters against its live article pool
   generatedAt: number;    // epoch ms
+  scoredArticleIds: ScoredArticle[]; // same ordering as articleIds (for returned set)
+  diagnostics: RecDiagnostics;
+}
+
+export interface RecTraceInfo {
+  requestId: string;
+  cfRay?: string;
+}
+
+export type RecCacheStatus = 'hit' | 'miss' | 'bypass';
+
+export interface RecCacheInfo {
+  status: RecCacheStatus;
+  key: string;
+  ttlSec: number;
+  ageSec: number;
+}
+
+export interface RecTimingMs {
+  total: number;
+  cacheLookup: number;
+  doFetch: number;
+  cacheWrite: number;
+}
+
+export interface RecResponse extends RecCoreResponse {
+  trace: RecTraceInfo;
+  cache: RecCacheInfo;
+  timingMs: RecTimingMs;
 }
 
 // Internal: per-article aggregated popularity stored in SQLite

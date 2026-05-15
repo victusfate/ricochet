@@ -2,7 +2,7 @@ import { RecDO } from './RecDO';
 export { RecDO };
 export type { RecWorkerEnv } from './worker-env';
 import type { RecWorkerEnv } from './worker-env';
-import type { RecResponse } from './types';
+import type { RecCoreResponse, RecResponse } from './types';
 import { isValidEvent } from './validation';
 
 const RATE_LIMIT_INTERACTIONS_MAX = 60;
@@ -108,10 +108,36 @@ function checkRateLimit(
 const MAX_BATCH_SIZE = 200;
 const MAX_LIMIT = 200;
 const DEFAULT_LIMIT = 50;
+const CACHE_TTL_SECONDS = 300;
 
 function getRecDOStub(env: RecWorkerEnv): DurableObjectStub {
   const id = env.REC_DO.idFromName('global');
   return env.REC_DO.get(id);
+}
+
+function withObservability(
+  core: RecCoreResponse,
+  request: Request,
+  cacheKey: string,
+  cacheStatus: 'hit' | 'miss' | 'bypass',
+  cacheAgeSec: number,
+  timingMs: RecResponse['timingMs'],
+): RecResponse {
+  const cfRay = request.headers.get('CF-Ray') ?? undefined;
+  return {
+    ...core,
+    trace: {
+      requestId: crypto.randomUUID(),
+      cfRay,
+    },
+    cache: {
+      status: cacheStatus,
+      key: cacheKey,
+      ttlSec: CACHE_TTL_SECONDS,
+      ageSec: cacheAgeSec,
+    },
+    timingMs,
+  };
 }
 
 export default {
@@ -176,6 +202,7 @@ export default {
     // GET /recommendations/:userId
     const recsMatch = pathname.match(/^\/recommendations\/(.+)$/);
     if (recsMatch && request.method === 'GET') {
+      const requestStartedAt = Date.now();
       const limited = checkRateLimit(request, 'recs', RATE_LIMIT_RECS_MAX);
       if (limited.limited) return tooManyRequests(request, env, limited.retryAfterSeconds);
 
@@ -184,17 +211,56 @@ export default {
       const limit = Math.min(isNaN(rawLimit) || rawLimit < 1 ? DEFAULT_LIMIT : rawLimit, MAX_LIMIT);
 
       const cacheKey = `recs:${userId}`;
-      const cached = await env.REC_STORE.get(cacheKey, 'json') as RecResponse | null;
-      if (cached) return json(cached, request, env);
+      const cacheLookupStartedAt = Date.now();
+      const cached = await env.REC_STORE.get(cacheKey, 'json') as RecCoreResponse | null;
+      const cacheLookupMs = Date.now() - cacheLookupStartedAt;
+      if (cached?.scoredArticleIds && cached?.diagnostics) {
+        const now = Date.now();
+        const response = withObservability(
+          cached,
+          request,
+          cacheKey,
+          'hit',
+          Math.max(0, Math.floor((now - cached.generatedAt) / 1000)),
+          {
+            total: now - requestStartedAt,
+            cacheLookup: cacheLookupMs,
+            doFetch: 0,
+            cacheWrite: 0,
+          },
+        );
+        return json(response, request, env);
+      }
+
+      const cacheStatus: 'miss' | 'bypass' = cached ? 'bypass' : 'miss';
 
       const stub = getRecDOStub(env);
+      const doFetchStartedAt = Date.now();
       const doRes = await stub.fetch(
         new Request(`http://do-internal/recs/${encodeURIComponent(userId)}?limit=${limit}`),
       );
-      const recBody = await doRes.json() as RecResponse;
+      const recBody = await doRes.json() as RecCoreResponse;
+      const doFetchMs = Date.now() - doFetchStartedAt;
 
-      await env.REC_STORE.put(cacheKey, JSON.stringify(recBody), { expirationTtl: 300 });
-      return json(recBody, request, env);
+      const cacheWriteStartedAt = Date.now();
+      await env.REC_STORE.put(cacheKey, JSON.stringify(recBody), { expirationTtl: CACHE_TTL_SECONDS });
+      const cacheWriteMs = Date.now() - cacheWriteStartedAt;
+
+      const now = Date.now();
+      const response = withObservability(
+        recBody,
+        request,
+        cacheKey,
+        cacheStatus,
+        0,
+        {
+          total: now - requestStartedAt,
+          cacheLookup: cacheLookupMs,
+          doFetch: doFetchMs,
+          cacheWrite: cacheWriteMs,
+        },
+      );
+      return json(response, request, env);
     }
 
     return new Response('Not Found', { status: 404, headers: corsHeaders(request, env) });

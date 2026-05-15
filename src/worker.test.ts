@@ -139,12 +139,25 @@ describe('S2 — POST /interactions', () => {
 // ── S3 — GET /recommendations/:userId ────────────────────────────────────────
 
 describe('S3 — GET /recommendations/:userId', () => {
-  it('returns RecResponse shape', async () => {
+  it('returns RecResponse shape with observability fields', async () => {
     const res = await req('GET', '/recommendations/user0000000000001');
     expect(res.status).toBe(200);
-    const body = await res.json() as { articleIds: unknown; generatedAt: unknown };
+    const body = await res.json() as {
+      articleIds: unknown;
+      generatedAt: unknown;
+      scoredArticleIds: unknown;
+      diagnostics: unknown;
+      trace: { requestId?: unknown };
+      cache: { status?: unknown };
+      timingMs: { total?: unknown };
+    };
     expect(Array.isArray(body.articleIds)).toBe(true);
     expect(typeof body.generatedAt).toBe('number');
+    expect(Array.isArray(body.scoredArticleIds)).toBe(true);
+    expect(typeof body.diagnostics).toBe('object');
+    expect(typeof body.trace?.requestId).toBe('string');
+    expect(['hit', 'miss', 'bypass']).toContain(body.cache?.status);
+    expect(typeof body.timingMs?.total).toBe('number');
   });
 
   it('accepts optional limit param', async () => {
@@ -178,24 +191,46 @@ describe('S5 — KV cache for /recommendations/:userId', () => {
   it('cache miss: first request calls DO and populates KV', async () => {
     const res1 = await req('GET', `/recommendations/${kvUser}`);
     expect(res1.status).toBe(200);
-    const body1 = await res1.json() as { articleIds: string[]; generatedAt: number };
+    const body1 = await res1.json() as {
+      articleIds: string[];
+      generatedAt: number;
+      cache: { status: string };
+    };
 
     // Second request within TTL should return the same generatedAt (served from KV)
     const res2 = await req('GET', `/recommendations/${kvUser}`);
-    const body2 = await res2.json() as { articleIds: string[]; generatedAt: number };
+    const body2 = await res2.json() as {
+      articleIds: string[];
+      generatedAt: number;
+      cache: { status: string };
+    };
     expect(body2.generatedAt).toBe(body1.generatedAt);
+    expect(body1.cache.status).toBe('miss');
+    expect(body2.cache.status).toBe('hit');
   });
 
   it('cache hit: subsequent requests return identical articleIds and generatedAt', async () => {
     const cacheUser = 'kv-stable-user';
     const res1 = await req('GET', `/recommendations/${cacheUser}`);
-    const body1 = await res1.json() as { articleIds: string[]; generatedAt: number };
+    const body1 = await res1.json() as {
+      articleIds: string[];
+      generatedAt: number;
+      cache: { status: string };
+      timingMs: { doFetch: number };
+    };
 
     const res2 = await req('GET', `/recommendations/${cacheUser}`);
-    const body2 = await res2.json() as { articleIds: string[]; generatedAt: number };
+    const body2 = await res2.json() as {
+      articleIds: string[];
+      generatedAt: number;
+      cache: { status: string };
+      timingMs: { doFetch: number };
+    };
 
     expect(body2.generatedAt).toBe(body1.generatedAt);
     expect(body2.articleIds).toEqual(body1.articleIds);
+    expect(body2.cache.status).toBe('hit');
+    expect(body2.timingMs.doFetch).toBe(0);
   });
 
   it('POST /interactions does not invalidate KV cache (TTL-only expiry)', async () => {
@@ -211,15 +246,28 @@ describe('S5 — KV cache for /recommendations/:userId', () => {
     expect(body2.generatedAt).toBe(body1.generatedAt);
   });
 
-  it('response is valid RecResponse shape when served from cache', async () => {
+  it('response keeps observability fields when served from cache', async () => {
     const shapeUser = 'kv-shape-user';
     // First call: cache miss
     await req('GET', `/recommendations/${shapeUser}`);
     // Second call: cache hit
     const res = await req('GET', `/recommendations/${shapeUser}`);
     expect(res.status).toBe(200);
-    const body = await res.json() as { articleIds: unknown; generatedAt: unknown };
+    const body = await res.json() as {
+      articleIds: unknown;
+      generatedAt: unknown;
+      scoredArticleIds: unknown;
+      diagnostics: unknown;
+      trace: unknown;
+      cache: unknown;
+      timingMs: unknown;
+    };
     expect(Array.isArray(body.articleIds)).toBe(true);
     expect(typeof body.generatedAt).toBe('number');
+    expect(Array.isArray(body.scoredArticleIds)).toBe(true);
+    expect(typeof body.diagnostics).toBe('object');
+    expect(typeof body.trace).toBe('object');
+    expect(typeof body.cache).toBe('object');
+    expect(typeof body.timingMs).toBe('object');
   });
 });

@@ -1,7 +1,10 @@
 // Public library API — no Cloudflare Worker dependencies.
 // Safe to import in Node, browsers, and edge runtimes.
 
-export type { Topic, Action, InteractionEvent, RecResponse } from './types';
+export type {
+  Topic, Action, InteractionEvent, RecCoreResponse, RecResponse, ScoredArticle,
+  RecDiagnostics, RecTraceInfo, RecCacheInfo, RecTimingMs,
+} from './types';
 export { isValidEvent } from './validation';
 export {
   ACTION_RATING,
