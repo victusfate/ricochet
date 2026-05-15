@@ -220,6 +220,27 @@ describe('S2 — interaction ingestion and popularity', () => {
     expect(recs.diagnostics.returnedCount).toBe(0);
   });
 
+  it('feed-pool mode rejects candidate lists over 100', async () => {
+    const userId = 'userPoolModeLarge1';
+    const candidateArticleIds = Array.from({ length: 101 }, (_, i) =>
+      `poollarge${String(i).padStart(8, '0')}`);
+    const res = await SELF.fetch(
+      `http://localhost/recommendations/${encodeURIComponent(userId)}`,
+      {
+        method: 'POST',
+        headers: {
+          Origin: 'https://victusfate.github.io',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ candidateArticleIds, limit: 50 }),
+      },
+    );
+    expect(res.status).toBe(400);
+    const body = await res.json() as { ok: boolean; message: string };
+    expect(body.ok).toBe(false);
+    expect(body.message).toContain('Too many candidateArticleIds in request');
+  });
+
   it('legacy mode remains global when candidates are omitted', async () => {
     const recs = await getRecs('userLegacyMode0001');
     expect(recs.diagnostics.candidateMode).toBe('global');

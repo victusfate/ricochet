@@ -106,7 +106,7 @@ const MAX_BATCH_SIZE = 200;
 const MAX_LIMIT = 500;
 const DEFAULT_LIMIT = 50;
 const CACHE_TTL_SECONDS = 300;
-const MAX_CANDIDATES = 500;
+const MAX_CANDIDATES = 100;
 
 function getRecDOStub(env: RecWorkerEnv): DurableObjectStub {
   const id = env.REC_DO.idFromName('global');
@@ -140,7 +140,7 @@ function parseCandidateArticleIds(value: unknown): { ids?: string[]; message?: s
     deduped.push(id);
   }
   if (deduped.length > MAX_CANDIDATES) {
-    return { message: `candidateArticleIds exceeds max ${MAX_CANDIDATES}` };
+    return { message: `Too many candidateArticleIds in request; max ${MAX_CANDIDATES}` };
   }
   return { ids: deduped };
 }
@@ -302,7 +302,7 @@ export default {
 
       if (candidateArticleIds && candidateArticleIds.length > MAX_CANDIDATES) {
         return json(
-          { ok: false, message: `candidateArticleIds exceeds max ${MAX_CANDIDATES}` },
+          { ok: false, message: `Too many candidateArticleIds in request; max ${MAX_CANDIDATES}` },
           request,
           env,
           { status: 400 },
