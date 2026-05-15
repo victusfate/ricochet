@@ -85,7 +85,7 @@ interface RecResponse {
 
 ```ts
 interface RecRankRequest {
-  candidateArticleIds?: string[]; // when present, rank only this caller feed-pool
+  candidateArticleIds?: string[]; // when present, rank only this caller feed-pool (max 100)
   limit?: number;                  // default 50, max 500
 }
 ```

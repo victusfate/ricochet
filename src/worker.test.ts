@@ -232,11 +232,14 @@ describe('S3 — GET /recommendations/:userId', () => {
     expect(body.diagnostics.candidateCount).toBe(2);
   });
 
-  it('POST /recommendations with >500 candidates returns 400', async () => {
+  it('POST /recommendations with >100 candidates returns 400', async () => {
     const userId = 'pool-mode-user-03';
-    const candidateArticleIds = Array.from({ length: 501 }, (_, i) => `c${String(i).padStart(15, '0')}`);
+    const candidateArticleIds = Array.from({ length: 101 }, (_, i) => `c${String(i).padStart(15, '0')}`);
     const res = await req('POST', `/recommendations/${userId}`, { candidateArticleIds, limit: 50 });
     expect(res.status).toBe(400);
+    const body = await res.json() as { ok: boolean; message: string };
+    expect(body.ok).toBe(false);
+    expect(body.message).toContain('Too many candidateArticleIds in request');
   });
 });
 

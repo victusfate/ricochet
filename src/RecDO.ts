@@ -13,7 +13,7 @@ const MF_PARAMS = DEFAULT_MF_PARAMS;
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 500;
 const GLOBAL_CANDIDATE_LIMIT = 200;
-const MAX_CANDIDATES = 500;
+const MAX_CANDIDATES = 100;
 
 type FactorsDbRow = {
   bias: number;
@@ -61,7 +61,7 @@ function parseCandidateArticleIds(value: unknown): { ids?: string[]; message?: s
     }
   }
   if (deduped.length > MAX_CANDIDATES) {
-    return { message: `candidateArticleIds exceeds max ${MAX_CANDIDATES}` };
+    return { message: `Too many candidateArticleIds in request; max ${MAX_CANDIDATES}` };
   }
   return { ids: deduped };
 }
@@ -168,7 +168,7 @@ export class RecDO implements DurableObject {
 
       if (parsedCandidates && parsedCandidates.length > MAX_CANDIDATES) {
         return Response.json(
-          { ok: false, message: `candidateArticleIds exceeds max ${MAX_CANDIDATES}` },
+          { ok: false, message: `Too many candidateArticleIds in request; max ${MAX_CANDIDATES}` },
           { status: 400 },
         );
       }
