@@ -1,3 +1,9 @@
+## [1.2.1](https://github.com/victusfate/ricochet/compare/v1.2.0...v1.2.1) (2026-05-15)
+
+### Bug Fixes
+
+* enforce 100-candidate cap for feed-pool ranking ([156cade](https://github.com/victusfate/ricochet/commit/156cadeeb0252ad3a7ef9ac0a8d963f2509c8b77))
+
 ## [1.2.0](https://github.com/victusfate/ricochet/compare/v1.1.0...v1.2.0) (2026-05-15)
 
 ### Features
