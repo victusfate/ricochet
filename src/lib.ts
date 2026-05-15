@@ -6,6 +6,7 @@ export type {
   RecCoreResponse, RecResponse, ScoredArticle,
   RecDiagnostics, RecTraceInfo, RecCacheInfo, RecTimingMs,
 } from './types';
+export { REC_MAX_CANDIDATES } from './types';
 export { isValidEvent } from './validation';
 export {
   ACTION_RATING,
