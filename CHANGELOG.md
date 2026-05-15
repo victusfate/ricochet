@@ -1,3 +1,9 @@
+## [1.1.0](https://github.com/victusfate/ricochet/compare/v1.0.0...v1.1.0) (2026-05-15)
+
+### Features
+
+* trigger release for observability contract ([5b30a17](https://github.com/victusfate/ricochet/commit/5b30a176a03174b9f3e8b7d63e117c5da6f31959))
+
 ## 1.0.0 (2026-05-08)
 
 ### Features
