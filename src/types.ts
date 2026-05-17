@@ -96,6 +96,17 @@ export interface RecResponse extends RecCoreResponse {
   timingMs: RecTimingMs;
 }
 
+// Shared row shape for the ranking_cache SQLite table.
+export type RankingCacheEntry = {
+  cache_key:  string;
+  payload:    string;
+  expires_at: number;  // Unix ms
+};
+
+// Default TTLs for the DO-local ranking cache.
+export const REC_FEED_POOL_CACHE_TTL_MS = 5 * 60 * 1000;   // 5 min — articles change per refresh
+export const REC_GLOBAL_CACHE_TTL_MS    = 60 * 60 * 1000;  // 1 h  — stable discovery-mode results
+
 // Internal: per-article aggregated popularity stored in SQLite
 export interface ArticleScore {
   articleId:  string;
