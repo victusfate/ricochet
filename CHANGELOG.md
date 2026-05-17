@@ -1,3 +1,9 @@
+## [1.3.0](https://github.com/victusfate/ricochet/compare/v1.2.3...v1.3.0) (2026-05-17)
+
+### Features
+
+* export REC_FEED_POOL_CACHE_TTL_MS, REC_GLOBAL_CACHE_TTL_MS, RankingCacheEntry from lib ([01147ec](https://github.com/victusfate/ricochet/commit/01147ec54aa9357651aa51ad0ae1b1910e74a3cc))
+
 ## [1.2.3](https://github.com/victusfate/ricochet/compare/v1.2.2...v1.2.3) (2026-05-17)
 
 ### Bug Fixes
