@@ -1,13 +1,7 @@
 // Public library API — no Cloudflare Worker dependencies.
 // Safe to import in Node, browsers, and edge runtimes.
 
-export type {
-  Topic, Action, InteractionEvent, RecRankRequest,
-  RecCoreResponse, RecResponse, ScoredArticle,
-  RecDiagnostics, RecTraceInfo, RecCacheInfo, RecTimingMs,
-} from './types';
-export { REC_MAX_CANDIDATES, REC_FEED_POOL_CACHE_TTL_MS, REC_GLOBAL_CACHE_TTL_MS } from './types';
-export type { RankingCacheEntry } from './types';
+export * from './types';
 export { isValidEvent } from './validation';
 export {
   ACTION_RATING,
