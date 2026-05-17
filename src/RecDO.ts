@@ -81,7 +81,7 @@ function parseCsvCandidates(raw: string | null): string[] | undefined {
 }
 
 export class RecDO implements DurableObject {
-  constructor(private state: DurableObjectState, private _env: RecWorkerEnv) {
+  constructor(protected state: DurableObjectState, protected _env: RecWorkerEnv) {
     this.state.storage.sql.exec(`
       CREATE TABLE IF NOT EXISTS interactions (
         user_id    TEXT NOT NULL,
