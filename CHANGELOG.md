@@ -1,3 +1,9 @@
+## [1.2.3](https://github.com/victusfate/ricochet/compare/v1.2.2...v1.2.3) (2026-05-17)
+
+### Bug Fixes
+
+* protected state/env in RecDO + export RankingCacheEntry and cache TTLs ([dad8218](https://github.com/victusfate/ricochet/commit/dad821857b43a811ef03c42a0defc240634c2429))
+
 ## [1.2.2](https://github.com/victusfate/ricochet/compare/v1.2.1...v1.2.2) (2026-05-15)
 
 ### Bug Fixes
