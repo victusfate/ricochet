@@ -1,3 +1,9 @@
+## [1.3.1](https://github.com/victusfate/ricochet/compare/v1.3.0...v1.3.1) (2026-05-18)
+
+### Bug Fixes
+
+* export RankingCacheEntry, cache TTLs, and all types from public API ([6668bcc](https://github.com/victusfate/ricochet/commit/6668bcc3a4b855d6bee87c2e59aafcfe58d03432))
+
 ## [1.3.0](https://github.com/victusfate/ricochet/compare/v1.2.3...v1.3.0) (2026-05-17)
 
 ### Features
