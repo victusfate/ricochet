@@ -277,10 +277,12 @@ describe('S4 — prune old interactions', () => {
     const before = await getRecs(userId);
     expect(before.articleIds).toContain(oldArticle);
 
-    // Prune with cutoff = now (removes everything older than now)
+    // Prune with cutoff = now for both interactions and item_factors.
+    // factorCutoff must be passed explicitly since soft-prune decouples the two schedules.
     const stub = env.REC_DO.get(env.REC_DO.idFromName('global'));
+    const now = Date.now();
     const pruneRes = await stub.fetch(
-      new Request(`http://do-internal/prune?cutoff=${Date.now()}`, { method: 'POST' }),
+      new Request(`http://do-internal/prune?cutoff=${now}&factorCutoff=${now}`, { method: 'POST' }),
     );
     expect(pruneRes.status).toBe(204);
 

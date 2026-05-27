@@ -8,12 +8,19 @@ import {
   mfLearnOne, mfPredict,
 } from './scoring';
 import type { FactorRow } from './scoring';
+import { parseLimit, parseTopicWeights } from './parsing';
 
-const SQLITE_RETENTION_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+const INTERACTION_RETENTION_MS = 30  * 24 * 60 * 60 * 1000; // 30 days
+const FACTOR_RETENTION_MS      = 180 * 24 * 60 * 60 * 1000; // 180 days — decoupled from interactions
 const MF_PARAMS = DEFAULT_MF_PARAMS;
-const DEFAULT_LIMIT = 50;
-const MAX_LIMIT = 500;
 const GLOBAL_CANDIDATE_LIMIT = 200;
+
+/**
+ * Users with fewer than this many interactions get a diversity-bucketed candidate
+ * pool (top-N per topic) rather than pure top-by-bias, breaking the popularity loop.
+ */
+const COLD_START_THRESHOLD = 30;
+const PER_TOPIC_DIVERSITY  = 10; // max articles per topic in cold-start pool
 
 type FactorsDbRow = {
   bias: number;
@@ -27,17 +34,6 @@ function dbRowToFactorRow(row: FactorsDbRow): FactorRow {
     v: [row.v0, row.v1, row.v2, row.v3, row.v4,
         row.v5, row.v6, row.v7, row.v8, row.v9],
   };
-}
-
-function parseLimit(value: unknown): number {
-  if (typeof value === 'number' && Number.isFinite(value)) {
-    return Math.max(1, Math.min(MAX_LIMIT, Math.trunc(value)));
-  }
-  if (typeof value === 'string') {
-    const parsed = parseInt(value, 10);
-    if (!Number.isNaN(parsed)) return Math.max(1, Math.min(MAX_LIMIT, parsed));
-  }
-  return DEFAULT_LIMIT;
 }
 
 function parseCandidateArticleIds(value: unknown): { ids?: string[]; message?: string } {
@@ -93,6 +89,10 @@ export class RecDO implements DurableObject {
         PRIMARY KEY (user_id, article_id, action)
       )
     `);
+    // Index on ts enables O(log n) prune scans instead of O(n) full table scans.
+    this.state.storage.sql.exec(
+      `CREATE INDEX IF NOT EXISTS idx_interactions_ts ON interactions(ts)`,
+    );
     this.state.storage.sql.exec(`
       CREATE TABLE IF NOT EXISTS global_state (
         id   INTEGER PRIMARY KEY DEFAULT 1,
@@ -145,6 +145,7 @@ export class RecDO implements DurableObject {
       const userId = decodeURIComponent(recsMatch[1]);
       let limit = parseLimit(url.searchParams.get('limit'));
       let parsedCandidates: string[] | undefined;
+      let topicWeights: Record<string, number> | undefined;
 
       if (request.method === 'GET') {
         parsedCandidates = parseCsvCandidates(url.searchParams.get('candidates'));
@@ -164,6 +165,13 @@ export class RecDO implements DurableObject {
         }
         parsedCandidates = parsed.ids;
         if (body?.limit !== undefined) limit = parseLimit(body.limit);
+        if (body?.topicWeights !== undefined) {
+          const parsedTw = parseTopicWeights(body.topicWeights);
+          if (parsedTw.message) {
+            return Response.json({ ok: false, message: parsedTw.message }, { status: 400 });
+          }
+          topicWeights = parsedTw.weights;
+        }
       }
 
       if (parsedCandidates && parsedCandidates.length > REC_MAX_CANDIDATES) {
@@ -174,8 +182,20 @@ export class RecDO implements DurableObject {
       }
 
       const candidateMode: RecDiagnostics['candidateMode'] = parsedCandidates ? 'feed-pool' : 'global';
-      const candidates = parsedCandidates ?? this.getTopCandidates(GLOBAL_CANDIDATE_LIMIT);
-      const scored = this.scoreCandidates(userId, candidates);
+      let candidates: string[];
+      if (parsedCandidates) {
+        candidates = parsedCandidates;
+      } else {
+        // Use diversity-bucketed candidates for cold-start users to break the
+        // popularity feedback loop; warm users get pure top-by-bias candidates.
+        const interactionCount = this.getInteractionCount(userId);
+        const isColdStart = interactionCount < COLD_START_THRESHOLD;
+        candidates = isColdStart
+          ? this.getDiverseCandidates(GLOBAL_CANDIDATE_LIMIT)
+          : this.getTopCandidates(GLOBAL_CANDIDATE_LIMIT);
+      }
+
+      const scored = this.scoreCandidates(userId, candidates, topicWeights);
       const topScored = scored.ranked.slice(0, limit);
       const body: RecCoreResponse = {
         articleIds: topScored.map(r => r.articleId),
@@ -203,11 +223,15 @@ export class RecDO implements DurableObject {
     }
 
     if (url.pathname === '/prune' && request.method === 'POST') {
-      const cutoffParam = url.searchParams.get('cutoff');
-      const cutoff = cutoffParam !== null
-        ? parseInt(cutoffParam, 10)
-        : Date.now() - SQLITE_RETENTION_MS;
-      this.prune(cutoff);
+      const interactionCutoffParam = url.searchParams.get('cutoff');
+      const factorCutoffParam      = url.searchParams.get('factorCutoff');
+      const interactionCutoff = interactionCutoffParam !== null
+        ? parseInt(interactionCutoffParam, 10)
+        : Date.now() - INTERACTION_RETENTION_MS;
+      const factorCutoff = factorCutoffParam !== null
+        ? parseInt(factorCutoffParam, 10)
+        : Date.now() - FACTOR_RETENTION_MS;
+      this.prune(interactionCutoff, factorCutoff);
       return new Response(null, { status: 204 });
     }
 
@@ -260,8 +284,8 @@ export class RecDO implements DurableObject {
       event.userId, event.articleId, event.action,
     )];
     if ((dup?.cnt ?? 0) > 0) {
-      // Use server-side `now` rather than event.ts to prevent a client from setting a
-      // far-future timestamp that would keep the row alive beyond the 30-day retention window.
+      // Use server-side `now` rather than event.ts — client-supplied timestamps
+      // could be set far in the future to bypass the 30-day prune retention window.
       this.state.storage.sql.exec(
         `UPDATE interactions SET ts = ? WHERE user_id = ? AND article_id = ? AND action = ?`,
         now, event.userId, event.articleId, event.action,
@@ -339,6 +363,7 @@ export class RecDO implements DurableObject {
 
   // ── S4: Candidate generation and BiasedMF scoring ─────────────────────────
 
+  /** Returns top-N articles by item bias — used for warm users (≥ COLD_START_THRESHOLD interactions). */
   getTopCandidates(limit: number): string[] {
     type Row = { article_id: string };
     return [...this.state.storage.sql.exec<Row>(
@@ -347,9 +372,62 @@ export class RecDO implements DurableObject {
     )].map(r => r.article_id);
   }
 
+  /**
+   * Returns a diversity-bucketed candidate pool for cold-start users.
+   * Takes up to PER_TOPIC_DIVERSITY articles per topic (breaking the popularity
+   * feedback loop), then fills remaining slots with top-by-bias articles.
+   */
+  getDiverseCandidates(totalLimit: number): string[] {
+    type Row = { article_id: string };
+
+    // Top PER_TOPIC_DIVERSITY per topic using SQLite window functions.
+    const diverseRows = [...this.state.storage.sql.exec<Row>(`
+      SELECT article_id FROM (
+        SELECT article_id,
+          ROW_NUMBER() OVER (PARTITION BY topic ORDER BY bias DESC) AS rn
+        FROM item_factors
+        WHERE topic != ''
+      ) WHERE rn <= ?
+    `, PER_TOPIC_DIVERSITY)];
+
+    const seen = new Set(diverseRows.map(r => r.article_id));
+
+    // Fill remaining slots (and handle articles with empty topic) with top-by-bias overall.
+    if (seen.size < totalLimit) {
+      const fillRows = [...this.state.storage.sql.exec<Row>(
+        `SELECT article_id FROM item_factors ORDER BY bias DESC LIMIT ?`,
+        totalLimit,
+      )];
+      for (const r of fillRows) {
+        if (seen.size >= totalLimit) break;
+        if (!seen.has(r.article_id)) {
+          diverseRows.push(r);
+          seen.add(r.article_id);
+        }
+      }
+    }
+
+    return diverseRows.slice(0, totalLimit).map(r => r.article_id);
+  }
+
+  /** Returns the number of interactions recorded for a given user. */
+  private getInteractionCount(userId: string): number {
+    type Row = { cnt: number };
+    const [row] = [...this.state.storage.sql.exec<Row>(
+      `SELECT COUNT(*) AS cnt FROM interactions WHERE user_id = ?`,
+      userId,
+    )];
+    return row?.cnt ?? 0;
+  }
+
+  /**
+   * Scores and ranks candidates for a user using BiasedMF.
+   * Applies optional topicWeights multipliers to shift ranking toward preferred topics.
+   */
   scoreCandidates(
     userId: string,
     candidateIds: string[],
+    topicWeights?: Record<string, number>,
   ): {
     ranked: ScoredArticle[];
     excludedDownvotes: number;
@@ -357,7 +435,6 @@ export class RecDO implements DurableObject {
     coldItemCount: number;
     warmItemCount: number;
   } {
-
     type GsRow = { mean: number };
     const [gs] = [...this.state.storage.sql.exec<GsRow>(
       `SELECT mean FROM global_state WHERE id = 1`,
@@ -381,11 +458,11 @@ export class RecDO implements DurableObject {
       )].map(r => r.article_id),
     );
 
-    type ItemRow = FactorsDbRow & { article_id: string };
+    type ItemRow = FactorsDbRow & { article_id: string; topic: string };
     const itemRows = candidateIds.length === 0
       ? []
       : [...this.state.storage.sql.exec<ItemRow>(
-        `SELECT article_id,bias,v0,v1,v2,v3,v4,v5,v6,v7,v8,v9
+        `SELECT article_id,bias,v0,v1,v2,v3,v4,v5,v6,v7,v8,v9,topic
          FROM item_factors WHERE article_id IN (${candidateIds.map(() => '?').join(',')})`,
         ...candidateIds,
       )];
@@ -403,19 +480,14 @@ export class RecDO implements DurableObject {
         continue;
       }
       const row = itemById.get(candidateId);
+      const baseScore = mfPredict(globalMean, uFactor, row ? dbRowToFactorRow(row) : coldItem);
+      const weight = topicWeights && row ? (topicWeights[row.topic] ?? 1.0) : 1.0;
       if (row) {
         warmItemCount += 1;
-        ranked.push({
-          articleId: candidateId,
-          score: mfPredict(globalMean, uFactor, dbRowToFactorRow(row)),
-        });
-        continue;
+      } else {
+        coldItemCount += 1;
       }
-      coldItemCount += 1;
-      ranked.push({
-        articleId: candidateId,
-        score: mfPredict(globalMean, uFactor, coldItem),
-      });
+      ranked.push({ articleId: candidateId, score: baseScore * weight });
     }
     ranked.sort((a, b) => b.score - a.score || a.articleId.localeCompare(b.articleId));
 
@@ -428,12 +500,24 @@ export class RecDO implements DurableObject {
     };
   }
 
-  prune(cutoff = Date.now() - SQLITE_RETENTION_MS): void {
-    this.state.storage.sql.exec(`DELETE FROM interactions WHERE ts < ?`, cutoff);
-    // Remove item_factors for articles with no remaining interactions
+  /**
+   * Removes stale data on two independent schedules:
+   * - interactions: pruned after 30 days (high-volume, drives model freshness)
+   * - item_factors: pruned after 180 days based on updated_at (retains learned item
+   *   quality for seasonal / long-tail articles even after interaction rows age out)
+   *
+   * Decoupling the two cutoffs means an article quiet for 31 days keeps its learned
+   * bias until 180 days have elapsed, avoiding cold-restart quality regression.
+   */
+  prune(
+    interactionCutoff = Date.now() - INTERACTION_RETENTION_MS,
+    factorCutoff      = Date.now() - FACTOR_RETENTION_MS,
+  ): void {
+    this.state.storage.sql.exec(`DELETE FROM interactions WHERE ts < ?`, interactionCutoff);
+    // Guard updated_at > 0 prevents accidental deletion of rows with the schema default value.
     this.state.storage.sql.exec(
-      `DELETE FROM item_factors
-       WHERE article_id NOT IN (SELECT DISTINCT article_id FROM interactions)`,
+      `DELETE FROM item_factors WHERE updated_at < ? AND updated_at > 0`,
+      factorCutoff,
     );
   }
 }

@@ -118,3 +118,9 @@ export interface ArticleScore {
   seens:      number;
   updatedAt:  number;
 }
+
+/** Request body for POST /recommendations/:userId */
+export interface RecRankRequest {
+  topicWeights?: Record<string, number>;
+  limit?: number;
+}
