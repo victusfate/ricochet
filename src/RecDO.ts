@@ -260,9 +260,11 @@ export class RecDO implements DurableObject {
       event.userId, event.articleId, event.action,
     )];
     if ((dup?.cnt ?? 0) > 0) {
+      // Use server-side `now` rather than event.ts to prevent a client from setting a
+      // far-future timestamp that would keep the row alive beyond the 30-day retention window.
       this.state.storage.sql.exec(
         `UPDATE interactions SET ts = ? WHERE user_id = ? AND article_id = ? AND action = ?`,
-        event.ts, event.userId, event.articleId, event.action,
+        now, event.userId, event.articleId, event.action,
       );
       return;
     }
@@ -271,7 +273,8 @@ export class RecDO implements DurableObject {
       `INSERT INTO interactions (user_id, article_id, source_id, action, topics, ts)
        VALUES (?, ?, ?, ?, ?, ?)`,
       event.userId, event.articleId, event.sourceId,
-      event.action, JSON.stringify(event.topics), event.ts,
+      // Use server-side `now` to prevent timestamp spoofing that could bypass pruning.
+      event.action, JSON.stringify(event.topics), now,
     );
 
     type GsRow = { mean: number; n: number };

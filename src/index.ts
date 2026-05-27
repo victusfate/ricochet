@@ -67,11 +67,10 @@ function tooManyRequests(request: Request, env: RecWorkerEnv, retryAfterSeconds:
 }
 
 function getClientIp(request: Request): string | null {
-  const cfIp = request.headers.get('CF-Connecting-IP');
-  if (cfIp) return cfIp;
-  const forwarded = request.headers.get('X-Forwarded-For');
-  if (!forwarded) return null;
-  return forwarded.split(',')[0]?.trim() || null;
+  // CF-Connecting-IP is injected by Cloudflare and cannot be spoofed by the client.
+  // X-Forwarded-For is client-controlled and must NOT be trusted for rate limiting —
+  // falling back to it would let any client bypass limits by forging the header.
+  return request.headers.get('CF-Connecting-IP');
 }
 
 function checkRateLimit(
@@ -85,7 +84,14 @@ function checkRateLimit(
   const bucketKey = `${key}:${clientIp}`;
   const existing = rateBuckets.get(bucketKey);
   if (!existing || existing.resetAt <= now) {
+    // Bucket expired or missing — reset. Opportunistically sweep stale entries to
+    // prevent unbounded memory growth after traffic spikes (e.g. DDoS burst).
     rateBuckets.set(bucketKey, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    if (rateBuckets.size > 1_000) {
+      for (const [k, bucket] of rateBuckets) {
+        if (bucket.resetAt <= now) rateBuckets.delete(k);
+      }
+    }
     return { limited: false };
   }
   if (existing.count >= max) {
@@ -95,11 +101,6 @@ function checkRateLimit(
     };
   }
   existing.count += 1;
-  if (rateBuckets.size > 10_000) {
-    for (const [k, bucket] of rateBuckets) {
-      if (bucket.resetAt <= now) rateBuckets.delete(k);
-    }
-  }
   return { limited: false };
 }
 
@@ -107,6 +108,9 @@ const MAX_BATCH_SIZE = 200;
 const MAX_LIMIT = 500;
 const DEFAULT_LIMIT = 50;
 const CACHE_TTL_SECONDS = 300;
+// 50 KB is generous for 200 interaction events; reject oversized bodies early
+// before JSON.parse() allocates memory for the full payload.
+const MAX_BODY_BYTES = 50_000;
 
 function getRecDOStub(env: RecWorkerEnv): DurableObjectStub {
   const id = env.REC_DO.idFromName('global');
@@ -225,6 +229,11 @@ export default {
     if (pathname === '/interactions' && request.method === 'POST') {
       const limited = checkRateLimit(request, 'interactions', RATE_LIMIT_INTERACTIONS_MAX);
       if (limited.limited) return tooManyRequests(request, env, limited.retryAfterSeconds);
+
+      const contentLength = parseInt(request.headers.get('Content-Length') ?? '0', 10);
+      if (contentLength > MAX_BODY_BYTES) {
+        return json({ ok: false, message: 'Request body too large' }, request, env, { status: 413 });
+      }
 
       let body: { events?: unknown };
       try {
