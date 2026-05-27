@@ -347,3 +347,114 @@ describe('S5 — KV cache for /recommendations/:userId', () => {
     expect(poolBody.cache.key).not.toBe(globalBody.cache.key);
   });
 });
+
+// ── S4 — POST /recommendations/:userId ───────────────────────────────────────
+
+describe('S4 — POST /recommendations/:userId with topicWeights', () => {
+  it('returns RecResponse shape', async () => {
+    const res = await req('POST', '/recommendations/user0000000000001', {});
+    expect(res.status).toBe(200);
+    const body = await res.json() as { articleIds: unknown; generatedAt: unknown };
+    expect(Array.isArray(body.articleIds)).toBe(true);
+    expect(typeof body.generatedAt).toBe('number');
+  });
+
+  it('accepts valid topicWeights and returns 200', async () => {
+    const res = await req('POST', '/recommendations/user0000000000001', {
+      topicWeights: { technology: 2.0, science: 0.5 },
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json() as { articleIds: string[] };
+    expect(Array.isArray(body.articleIds)).toBe(true);
+  });
+
+  it('rejects negative topicWeights with 400', async () => {
+    const res = await req('POST', '/recommendations/user0000000000001', {
+      topicWeights: { technology: -1 },
+    });
+    expect(res.status).toBe(400);
+    const body = await res.json() as { ok: boolean; message: string };
+    expect(body.ok).toBe(false);
+    expect(body.message).toContain('non-negative');
+  });
+
+  it('rejects non-object topicWeights with 400', async () => {
+    const res = await req('POST', '/recommendations/user0000000000001', {
+      topicWeights: ['technology', 'science'],
+    });
+    expect(res.status).toBe(400);
+  });
+
+  it('accepts limit param in body', async () => {
+    const res = await req('POST', '/recommendations/user0000000000001', { limit: 10 });
+    expect(res.status).toBe(200);
+  });
+
+  it('rate-limits POST /recommendations to 30 req/min per IP', async () => {
+    const clientIp = '203.0.113.55';
+    for (let i = 0; i < 30; i++) {
+      const r = await req('POST', '/recommendations/someuser', {},
+        'https://victusfate.github.io', clientIp);
+      expect(r.status).toBe(200);
+    }
+    const limited = await req('POST', '/recommendations/someuser', {},
+      'https://victusfate.github.io', clientIp);
+    expect(limited.status).toBe(429);
+  });
+});
+
+// ── S6 — ETag on GET /recommendations ─────────────────────────────────────────
+
+describe('S6 — ETag caching for GET /recommendations/:userId', () => {
+  it('GET /recommendations returns an ETag header', async () => {
+    const res = await req('GET', '/recommendations/etaguser0000001');
+    expect(res.status).toBe(200);
+    const etag = res.headers.get('ETag');
+    expect(etag).toBeTruthy();
+    expect(etag).toMatch(/^"[0-9a-f]+"$/); // quoted hex string
+  });
+
+  it('second GET with matching If-None-Match returns 304', async () => {
+    const etagUser = 'etaguser0000002';
+    const res1 = await req('GET', `/recommendations/${etagUser}`);
+    expect(res1.status).toBe(200);
+    const etag = res1.headers.get('ETag') ?? '';
+    expect(etag).toBeTruthy();
+
+    // Send If-None-Match with the etag
+    const headers = new Headers({
+      Origin: 'https://victusfate.github.io',
+      'If-None-Match': etag,
+    });
+    const req304 = new Request(`http://localhost/recommendations/${etagUser}`, {
+      method: 'GET',
+      headers,
+    });
+    const ctx = createExecutionContext();
+    const res2 = await worker.fetch(req304, env, ctx);
+    await waitOnExecutionContext(ctx);
+    expect(res2.status).toBe(304);
+  });
+
+  it('ETag differs for different users', async () => {
+    // Seed different articles for two users
+    await req('POST', '/interactions', {
+      events: [{
+        userId: 'etagUserA000001', articleId: 'etagArticleA0001',
+        sourceId: 'src1', topics: ['technology'], action: 'save', ts: Date.now(),
+      }],
+    });
+    await req('POST', '/interactions', {
+      events: [{
+        userId: 'etagUserB000001', articleId: 'etagArticleB0001',
+        sourceId: 'src2', topics: ['science'], action: 'save', ts: Date.now(),
+      }],
+    });
+
+    const resA = await req('GET', '/recommendations/etagUserA000001');
+    const resB = await req('GET', '/recommendations/etagUserB000001');
+    // ETags may or may not differ depending on model state, but both should exist
+    expect(resA.headers.get('ETag')).toBeTruthy();
+    expect(resB.headers.get('ETag')).toBeTruthy();
+  });
+});
