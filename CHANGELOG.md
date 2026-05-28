@@ -1,3 +1,9 @@
+## [1.4.2](https://github.com/victusfate/ricochet/compare/v1.4.1...v1.4.2) (2026-05-28)
+
+### Bug Fixes
+
+* patch 9 code-review findings across parsing, DO, and Worker layers ([2cba724](https://github.com/victusfate/ricochet/commit/2cba7245bd7ce45e376e4c85dfac56af844e627d))
+
 ## [1.4.1](https://github.com/victusfate/ricochet/compare/v1.4.0...v1.4.1) (2026-05-28)
 
 ### Bug Fixes
