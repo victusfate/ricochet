@@ -24,6 +24,7 @@
     "src/validation.ts",
     "src/index.ts",
     "src/RecDO.ts",
+    "src/parsing.ts",
     "src/worker-env.ts"
   ],
   "scripts": {
