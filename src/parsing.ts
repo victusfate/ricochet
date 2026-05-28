@@ -1,6 +1,8 @@
 /** Shared parsing utilities — used by both the Worker edge layer and the RecDO. */
 
-export const MAX_LIMIT    = 200;
+import { REC_MAX_CANDIDATES } from './types';
+
+export const MAX_LIMIT    = 500;
 export const DEFAULT_LIMIT = 50;
 
 export function parseLimit(value: unknown): number {
@@ -12,6 +14,41 @@ export function parseLimit(value: unknown): number {
     if (!Number.isNaN(parsed)) return Math.max(1, Math.min(MAX_LIMIT, parsed));
   }
   return DEFAULT_LIMIT;
+}
+
+export function parseCandidateArticleIds(value: unknown): { ids?: string[]; message?: string } {
+  if (value === undefined) return {};
+  if (!Array.isArray(value)) {
+    return { message: 'candidateArticleIds must be an array of non-empty strings' };
+  }
+  const deduped: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of value) {
+    if (typeof raw !== 'string') return { message: 'candidateArticleIds must contain only strings' };
+    const id = raw.trim();
+    if (!id) return { message: 'candidateArticleIds must not contain empty IDs' };
+    if (seen.has(id)) continue;
+    seen.add(id);
+    deduped.push(id);
+  }
+  if (deduped.length > REC_MAX_CANDIDATES) {
+    return { message: `Too many candidateArticleIds in request; max ${REC_MAX_CANDIDATES}` };
+  }
+  return { ids: deduped };
+}
+
+export function parseCandidatesCsv(raw: string | null): string[] | undefined {
+  if (raw === null) return undefined;
+  if (!raw.trim()) return [];
+  const deduped: string[] = [];
+  const seen = new Set<string>();
+  for (const part of raw.split(',')) {
+    const id = part.trim();
+    if (!id || seen.has(id)) continue;
+    seen.add(id);
+    deduped.push(id);
+  }
+  return deduped;
 }
 
 /**

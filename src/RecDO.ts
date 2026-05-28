@@ -8,7 +8,7 @@ import {
   mfLearnOne, mfPredict,
 } from './scoring';
 import type { FactorRow } from './scoring';
-import { parseLimit, parseTopicWeights } from './parsing';
+import { parseLimit, parseTopicWeights, parseCandidateArticleIds, parseCandidatesCsv } from './parsing';
 
 const INTERACTION_RETENTION_MS = 30  * 24 * 60 * 60 * 1000; // 30 days
 const FACTOR_RETENTION_MS      = 180 * 24 * 60 * 60 * 1000; // 180 days — decoupled from interactions
@@ -36,45 +36,6 @@ function dbRowToFactorRow(row: FactorsDbRow): FactorRow {
   };
 }
 
-function parseCandidateArticleIds(value: unknown): { ids?: string[]; message?: string } {
-  if (value === undefined) return {};
-  if (!Array.isArray(value)) {
-    return { message: 'candidateArticleIds must be an array of non-empty strings' };
-  }
-  const deduped: string[] = [];
-  const seen = new Set<string>();
-  for (const raw of value) {
-    if (typeof raw !== 'string') {
-      return { message: 'candidateArticleIds must contain only strings' };
-    }
-    const id = raw.trim();
-    if (!id) {
-      return { message: 'candidateArticleIds must not contain empty IDs' };
-    }
-    if (!seen.has(id)) {
-      seen.add(id);
-      deduped.push(id);
-    }
-  }
-  if (deduped.length > REC_MAX_CANDIDATES) {
-    return { message: `Too many candidateArticleIds in request; max ${REC_MAX_CANDIDATES}` };
-  }
-  return { ids: deduped };
-}
-
-function parseCsvCandidates(raw: string | null): string[] | undefined {
-  if (raw === null) return undefined;
-  if (!raw.trim()) return [];
-  const deduped: string[] = [];
-  const seen = new Set<string>();
-  for (const part of raw.split(',')) {
-    const id = part.trim();
-    if (!id || seen.has(id)) continue;
-    seen.add(id);
-    deduped.push(id);
-  }
-  return deduped;
-}
 
 export class RecDO implements DurableObject {
   constructor(protected state: DurableObjectState, protected _env: RecWorkerEnv) {
@@ -129,6 +90,14 @@ export class RecDO implements DurableObject {
         updated_at INTEGER NOT NULL DEFAULT 0
       )
     `);
+    // Migration: add all_topics column for multi-topic weight scoring.
+    // topic retains the primary topic for diversity bucketing; all_topics stores
+    // the full JSON array so topicWeights can match any of an article's topics.
+    try {
+      this.state.storage.sql.exec(
+        `ALTER TABLE item_factors ADD COLUMN all_topics TEXT NOT NULL DEFAULT '[]'`,
+      );
+    } catch { /* column already exists — safe to ignore */ }
   }
 
   async fetch(request: Request): Promise<Response> {
@@ -136,7 +105,9 @@ export class RecDO implements DurableObject {
 
     if (url.pathname === '/ingest' && request.method === 'POST') {
       const events = await request.json() as InteractionEvent[];
-      for (const event of events) this.learnOne(event);
+      this.state.storage.transactionSync(() => {
+        for (const event of events) this.learnOne(event);
+      });
       return new Response(null, { status: 204 });
     }
 
@@ -148,7 +119,7 @@ export class RecDO implements DurableObject {
       let topicWeights: Record<string, number> | undefined;
 
       if (request.method === 'GET') {
-        parsedCandidates = parseCsvCandidates(url.searchParams.get('candidates'));
+        parsedCandidates = parseCandidatesCsv(url.searchParams.get('candidates'));
       } else {
         let body: RecRankRequest | null;
         try {
@@ -347,17 +318,17 @@ export class RecDO implements DurableObject {
     const iv = res.item.v;
     this.state.storage.sql.exec(
       `INSERT INTO item_factors
-         (article_id,bias,v0,v1,v2,v3,v4,v5,v6,v7,v8,v9,source_id,topic,updated_at)
-       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+         (article_id,bias,v0,v1,v2,v3,v4,v5,v6,v7,v8,v9,source_id,topic,all_topics,updated_at)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
        ON CONFLICT(article_id) DO UPDATE SET
          bias=excluded.bias,
          v0=excluded.v0,v1=excluded.v1,v2=excluded.v2,v3=excluded.v3,v4=excluded.v4,
          v5=excluded.v5,v6=excluded.v6,v7=excluded.v7,v8=excluded.v8,v9=excluded.v9,
          source_id=excluded.source_id, topic=excluded.topic,
-         updated_at=excluded.updated_at`,
+         all_topics=excluded.all_topics, updated_at=excluded.updated_at`,
       event.articleId, res.item.bias,
       iv[0], iv[1], iv[2], iv[3], iv[4], iv[5], iv[6], iv[7], iv[8], iv[9],
-      event.sourceId, event.topics[0] ?? '', now,
+      event.sourceId, event.topics[0] ?? '', JSON.stringify(event.topics), now,
     );
   }
 
@@ -458,11 +429,11 @@ export class RecDO implements DurableObject {
       )].map(r => r.article_id),
     );
 
-    type ItemRow = FactorsDbRow & { article_id: string; topic: string };
+    type ItemRow = FactorsDbRow & { article_id: string; topic: string; all_topics: string };
     const itemRows = candidateIds.length === 0
       ? []
       : [...this.state.storage.sql.exec<ItemRow>(
-        `SELECT article_id,bias,v0,v1,v2,v3,v4,v5,v6,v7,v8,v9,topic
+        `SELECT article_id,bias,v0,v1,v2,v3,v4,v5,v6,v7,v8,v9,topic,all_topics
          FROM item_factors WHERE article_id IN (${candidateIds.map(() => '?').join(',')})`,
         ...candidateIds,
       )];
@@ -481,7 +452,15 @@ export class RecDO implements DurableObject {
       }
       const row = itemById.get(candidateId);
       const baseScore = mfPredict(globalMean, uFactor, row ? dbRowToFactorRow(row) : coldItem);
-      const weight = topicWeights && row ? (topicWeights[row.topic] ?? 1.0) : 1.0;
+      let weight = 1.0;
+      if (topicWeights && row) {
+        // Check all stored topics so multi-topic articles match any weighted topic.
+        // Fallback to primary topic for rows written before all_topics was added.
+        let topics: string[];
+        try { topics = JSON.parse(row.all_topics || '[]') as string[]; } catch { topics = []; }
+        if (topics.length === 0) topics.push(row.topic);
+        weight = topics.reduce((best, t) => Math.max(best, topicWeights[t] ?? 1.0), 1.0);
+      }
       if (row) {
         warmItemCount += 1;
       } else {
