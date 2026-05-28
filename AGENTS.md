@@ -1,113 +1,104 @@
-# Ricochet — Claude Code Guidelines
+# Agent Guidelines
 
-## What is this repo?
+## Session Start
 
-`ricochet` is a Cloudflare Worker (`rec-worker`) that provides edge-side article recommendations
-for `victusfate/boomerang`. It ingests anonymous interaction events from `news-feed` clients
-and returns ranked article-ID lists based on aggregated popularity.
+On your first response in a new session, check `./docs/` for existing feature
+artifacts (`design.md`, `prd.md`, `plan.md`).
 
-This repo inherits conventions from
-[victusfate/boomerang AGENTS.md](https://github.com/victusfate/boomerang/blob/main/AGENTS.md).
+- **Artifacts exist:** acknowledge them and ask how to continue.
+- **No artifacts + user describes a feature to build:** automatically start
+  `/feature-chain` — no permission needed.
+- **No artifacts + intent unclear:** ask once: "What are we building today?"
 
----
+Don't ask again in the same session.
 
-## Repository layout
+## Minimum Viable Diff
 
-| Path | What it is |
-|---|---|
-| `src/index.ts` | Worker entry — routing, CORS, rate limiting, KV cache, scheduled handler |
-| `src/types.ts` | Shared types: `Topic`, `Action`, `InteractionEvent`, `RecResponse` |
-| `src/validation.ts` | `isValidEvent` — schema guard for incoming interaction events |
-| `src/scoring.ts` | Pure BiasedMF functions: `ACTION_RATING`, `mfPredict`, `mfLearnOne`, factor helpers |
-| `src/RecDO.ts` | Global Durable Object — online MF learning, candidate scoring, prune |
-| `src/worker.test.ts` | HTTP endpoint tests (Vitest + cloudflare pool) |
-| `src/RecDO.test.ts` | Durable Object unit / integration tests |
-| `src/scoring.test.ts` | Pure-function unit tests for BiasedMF math (no CF dependencies) |
-| `wrangler.jsonc` | Worker config — KV binding `REC_STORE`, DO binding `REC_DO` |
-| `docs/biased-mf-recs/` | PRD → Plan → TDD log for BiasedMF recommendation feature |
+Prefer the smallest change that achieves the goal.
 
----
+- Single, targeted edits. Don't rewrite when a few-line change works.
+- Preserve existing structure, naming, and patterns unless a rewrite is asked for.
+- No opportunistic refactors — surface them as separate suggestions.
+- No style-preference rewrites. Working code stays as-is.
+- When in doubt, ask before producing a diff larger than ~30 lines.
 
-## Tech stack
+## The Chain
 
-- **Runtime**: Cloudflare Workers (ES2024, TypeScript strict)
-- **Storage**: One global `RecDO` (SQLite via Durable Object storage) + KV namespace `REC_STORE`
-- **Tests**: Vitest 4 + `@cloudflare/vitest-pool-workers`
-- **Deploy**: `wrangler deploy` (from repo root)
+Run `/feature-chain` to execute all phases automatically. Or invoke individually:
 
----
+1. **Design** — `/grill-with-docs`. Interview one question at a time until
+   the design tree is resolved. Produces `design.md` with Q&A, decisions, and
+   a **canonical vocabulary**. Run `/design-review` (auto-fix mode) before
+   advancing — patches `design.md` directly. Auto-advances to PRD when complete.
 
-## PR workflow — always follow this order
+2. **PRD** — `/to-prd`. Synthesize context and codebase into `prd.md` without
+   re-interviewing. Auto-advances to TDD when complete.
 
-1. Pull latest main first
-2. Create a clean branch: `git checkout -b claude/<short-descriptive-name>`
-3. Do the work, then typecheck: `npm run typecheck`
-4. Run tests: `npm test`
-5. Push branch and create PR via GitHub MCP tools
-6. After merge, pull main again
+3. **Plan** — break `prd.md` into **vertical slices** (each cuts through all
+   layers: data → logic → UI → tests). Output `plan.md`. Confirm granularity
+   once before coding.
 
-> Never commit directly to main for feature work.
+4. **TDD** — `/tdd`. Execute `plan.md` one slice at a time: RED → GREEN →
+   REFACTOR. When all slices pass, run `/code-quality-review` (auto-fix mode)
+   — patches source files directly before advancing to the review summary.
+   Maintain `tdd-log.md` with per-slice status.
 
----
+**Stop** the chain at any point by saying "stop", "pause", or "just answer".
 
-## Quick reference
+## Artifacts — One Folder Per Feature
 
-| Action | Command |
-|---|---|
-| Install deps | `npm install` |
-| Run tests | `npm test` |
-| Typecheck | `npm run typecheck` |
-| Dev server | `npm run dev` → http://127.0.0.1:8790 |
-| Deploy | `npm run deploy` |
-| Regen types | `npm run cf-typegen` |
-
----
-
-## Claude Code Workflow — Design → PRD → Plan → TDD
-
-Same chain as boomerang. See `docs/edge-recommendations/` for the feature artifacts.
-
-Artifacts live in `./docs/<feature-slug>/` (kebab-case, ≤30 chars):
+State the slug before writing the first file so I can correct it.
 
 ```
 ./docs/<feature-slug>/
   ├── design.md      # Q&A, decisions, scenarios, canonical vocabulary
   ├── prd.md         # full PRD
   ├── plan.md        # vertical slices
-  └── tdd-log.md     # per-slice TDD status and notes
+  └── tdd-log.md     # per-slice TDD status
 ```
 
-Git commit messages follow conventional-commit style:
+Feature-slug rule: kebab-case, drop articles, keep it under ~30 chars.
+
+## Git Commits — One Per Step
+
+Commit each artifact before moving on:
+
 - `docs(<slug>): design Q&A and vocabulary`
+- `docs(<slug>): PRD`
+- `docs(<slug>): implementation plan`
+
+For TDD, commit per phase per slice:
+
 - `test(<slug>): slice N red — <behavior>`
 - `feat(<slug>): slice N green — <behavior>`
-- `refactor(<slug>): slice N — <what changed>`
+- `refactor(<slug>): slice N — <what changed>` (only if refactor happened)
 
----
+## Retry Semantics
 
-## Minimum Viable Diff
+Each step's input is the prior step's artifact:
 
-Prefer the smallest change that achieves the goal. No opportunistic refactors.
-When in doubt, ask before producing a diff larger than ~30 lines for a small feature.
+- Bad TDD slice → revert those commits, re-run from `plan.md` slice N.
+- Plan off → re-plan from `prd.md`.
+- PRD missed something → extend `design.md`, then rewrite `prd.md`.
+- Terms drift → update vocabulary in `design.md`, then propagate.
 
----
+## What This Doesn't Apply To
 
-## Key behaviours to preserve
+Skip the chain for:
 
-- **Interaction deduplication**: SQLite `PRIMARY KEY (user_id, article_id, action)` prevents
-  double-counting the same action.
-- **Downvote exclusion**: `GET /recommendations/:userId` always excludes articles the user
-  has downvoted, even if they are globally popular.
-- **No PII**: `userId` is an anonymous hash. No email, name, or device identifier stored.
-- **Batch cap**: `POST /interactions` rejects batches > 200 events with 400.
-- **CORS**: Allowlist same as meta-worker; `EXTRA_CORS_ORIGINS` env for custom domains.
+- Bug fixes under ~10 lines
+- One-off scripts or throwaway prototypes
+- Config edits, dependency bumps, lint fixes
+- Doc-only changes
+- Anything where I say "just write it", "no tests", or "quick fix"
 
----
+## PR Workflow
 
-## What rec-worker does NOT own
+1. Pull latest main: `git checkout main && git pull origin main`
+2. Create a clean branch: `git checkout -b <prefix>/<short-descriptive-name>`
+3. Do the work, verify with build/tests
+4. Commit, push: `git push -u origin <branch>`
+5. Create PR
+6. After merge, pull main again
 
-- Article fetching / RSS parsing — `rss-worker` in boomerang
-- User prefs persistence — IndexedDB in `news-feed`
-- Cross-device sync — `sync-worker` in boomerang
-- AI tags — `meta-worker` in boomerang
-- Local re-ranking — `news-feed/src/services/algorithm.ts`
+Never commit directly to main for feature work. Never reuse an old branch for a new PR.
