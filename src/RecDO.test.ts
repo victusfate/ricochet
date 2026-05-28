@@ -277,10 +277,12 @@ describe('S4 — prune old interactions', () => {
     const before = await getRecs(userId);
     expect(before.articleIds).toContain(oldArticle);
 
-    // Prune with cutoff = now (removes everything older than now)
+    // Prune with cutoff = now for both interactions and item_factors.
+    // factorCutoff must be passed explicitly since soft-prune decouples the two schedules.
     const stub = env.REC_DO.get(env.REC_DO.idFromName('global'));
+    const now = Date.now();
     const pruneRes = await stub.fetch(
-      new Request(`http://do-internal/prune?cutoff=${Date.now()}`, { method: 'POST' }),
+      new Request(`http://do-internal/prune?cutoff=${now}&factorCutoff=${now}`, { method: 'POST' }),
     );
     expect(pruneRes.status).toBe(204);
 
@@ -550,5 +552,191 @@ describe('S4 — scoring and recommendations', () => {
     // Fresh DO namespace would be empty, but we share state — just verify shape
     const recs = await getRecs('userS4F0000001');
     expect(Array.isArray(recs.articleIds)).toBe(true);
+  });
+});
+
+// ── S6 — Cold-start diversity and topic-affinity ─────────────────────────────
+
+describe('S6 — cold-start diversity and topic affinity', () => {
+  function stub() {
+    return env.REC_DO.get(env.REC_DO.idFromName('global'));
+  }
+
+  it('getDiverseCandidates includes articles from multiple topics when present', async () => {
+    // Seed articles across 3 distinct topics
+    const seeder = 'userDiverseSeed01';
+    const techArt    = 'diversetech00001';
+    const scienceArt = 'diversescience01';
+    const worldArt   = 'diverseworld0001';
+
+    await ingest([
+      makeEvent({ userId: seeder, articleId: techArt,    topics: ['technology'], action: 'upvote', sourceId: 'src1' }),
+      makeEvent({ userId: seeder, articleId: scienceArt, topics: ['science'],    action: 'upvote', sourceId: 'src2' }),
+      makeEvent({ userId: seeder, articleId: worldArt,   topics: ['world'],      action: 'upvote', sourceId: 'src3' }),
+    ]);
+
+    // Cold-start user (no prior interactions) should get a fresh response
+    const coldUser = 'userColdDiverse001';
+    const recs = await getRecs(coldUser);
+    expect(Array.isArray(recs.articleIds)).toBe(true);
+    // All three articles should be in the candidate pool (< 200 total articles in test DO)
+    expect(recs.articleIds).toContain(techArt);
+    expect(recs.articleIds).toContain(scienceArt);
+    expect(recs.articleIds).toContain(worldArt);
+  });
+
+  it('topic-affinity weights via POST /recs boost preferred topic articles', async () => {
+    const seeder    = 'userTopicSeed0001';
+    const highBiasArt = 'topicHighBias001'; // technology, many interactions → high bias
+    const lowBiasArt  = 'topicLowBias0001'; // science, few interactions → low bias
+
+    // Make tech article popular
+    await ingest([
+      makeEvent({ userId: seeder,      articleId: highBiasArt, topics: ['technology'], action: 'save',   sourceId: 'src-tech' }),
+      makeEvent({ userId: seeder,      articleId: highBiasArt, topics: ['technology'], action: 'upvote', sourceId: 'src-tech' }),
+      makeEvent({ userId: seeder,      articleId: highBiasArt, topics: ['technology'], action: 'read',   sourceId: 'src-tech' }),
+      makeEvent({ userId: 'twSeed002', articleId: highBiasArt, topics: ['technology'], action: 'save',   sourceId: 'src-tech' }),
+      makeEvent({ userId: 'twSeed003', articleId: highBiasArt, topics: ['technology'], action: 'save',   sourceId: 'src-tech' }),
+    ]);
+    // Science article gets only one read
+    await ingest([
+      makeEvent({ userId: seeder, articleId: lowBiasArt, topics: ['science'], action: 'read', sourceId: 'src-sci' }),
+    ]);
+
+    const s = stub();
+
+    // Without topic weights: high-bias tech article should rank first
+    const baseRes = await s.fetch(new Request(
+      'http://do-internal/recs/userTopicTarget01?limit=50',
+    ));
+    const baseBody = await baseRes.json() as { articleIds: string[] };
+    const baseHiIdx = baseBody.articleIds.indexOf(highBiasArt);
+    const baseLoIdx = baseBody.articleIds.indexOf(lowBiasArt);
+    if (baseHiIdx !== -1 && baseLoIdx !== -1) {
+      expect(baseHiIdx).toBeLessThan(baseLoIdx);
+    }
+
+    // With science boosted 10×: science article should rank above tech
+    const boostedRes = await s.fetch(new Request(
+      'http://do-internal/recs/userTopicTarget01',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ topicWeights: { science: 10, technology: 1 }, limit: 50 }),
+      },
+    ));
+    const boostedBody = await boostedRes.json() as { articleIds: string[] };
+    const boostedHiIdx = boostedBody.articleIds.indexOf(highBiasArt);
+    const boostedLoIdx = boostedBody.articleIds.indexOf(lowBiasArt);
+
+    // Science should now rank above tech due to 10× multiplier
+    if (boostedHiIdx !== -1 && boostedLoIdx !== -1) {
+      expect(boostedLoIdx).toBeLessThan(boostedHiIdx);
+    }
+  });
+
+  it('POST /recs returns 400 for invalid topicWeights', async () => {
+    const s = stub();
+    const res = await s.fetch(new Request(
+      'http://do-internal/recs/userBadWeights01',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ topicWeights: { technology: -1 } }),
+      },
+    ));
+    expect(res.status).toBe(400);
+    const body = await res.json() as { ok: boolean; message: string };
+    expect(body.message).toContain('non-negative');
+  });
+
+  it('POST /recs with no topicWeights returns normal ranking', async () => {
+    const s = stub();
+    const res = await s.fetch(new Request(
+      'http://do-internal/recs/userNoWeights001',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ limit: 10 }),
+      },
+    ));
+    expect(res.status).toBe(200);
+    const body = await res.json() as { articleIds: string[] };
+    expect(Array.isArray(body.articleIds)).toBe(true);
+  });
+});
+
+// ── S7 — Soft prune (decoupled interaction vs factor retention) ───────────────
+
+describe('S7 — soft prune: interactions vs item_factors on separate schedules', () => {
+  function stub() {
+    return env.REC_DO.get(env.REC_DO.idFromName('global'));
+  }
+
+  it('interaction rows are deleted at interactionCutoff but item_factors survive', async () => {
+    const userId    = 'userSoftPruneA01';
+    const articleId = 'softpruneArt0001';
+
+    await ingest([makeEvent({ userId, articleId, action: 'read' })]);
+
+    // Verify interactions row exists
+    const countBefore = await stub().fetch(
+      new Request('http://do-internal/debug/interactions-count'),
+    );
+    const { count: cntBefore } = await countBefore.json() as { count: number };
+
+    const factorsBefore = await stub().fetch(
+      new Request('http://do-internal/debug/item-factors-count'),
+    );
+    const { count: factorCntBefore } = await factorsBefore.json() as { count: number };
+
+    // Prune interactions aggressively (cutoff = now) but keep factors (factorCutoff = 180 days ago)
+    const interactionCutoff = Date.now();
+    const factorCutoff = Date.now() - 180 * 24 * 60 * 60 * 1000; // 180 days ago
+    const pruneRes = await stub().fetch(new Request(
+      `http://do-internal/prune?cutoff=${interactionCutoff}&factorCutoff=${factorCutoff}`,
+      { method: 'POST' },
+    ));
+    expect(pruneRes.status).toBe(204);
+
+    // Interactions should decrease
+    const countAfter = await stub().fetch(
+      new Request('http://do-internal/debug/interactions-count'),
+    );
+    const { count: cntAfter } = await countAfter.json() as { count: number };
+    expect(cntAfter).toBeLessThan(cntBefore);
+
+    // item_factors count should be unchanged (recent updated_at, not expired)
+    const factorsAfter = await stub().fetch(
+      new Request('http://do-internal/debug/item-factors-count'),
+    );
+    const { count: factorCntAfter } = await factorsAfter.json() as { count: number };
+    expect(factorCntAfter).toBe(factorCntBefore);
+  });
+
+  it('item_factors are deleted when factorCutoff covers their updated_at', async () => {
+    const userId    = 'userSoftPruneB01';
+    const articleId = 'softpruneBrt0001';
+
+    await ingest([makeEvent({ userId, articleId, action: 'upvote' })]);
+
+    const factorsBefore = await stub().fetch(
+      new Request('http://do-internal/debug/item-factors-count'),
+    );
+    const { count: cntBefore } = await factorsBefore.json() as { count: number };
+    expect(cntBefore).toBeGreaterThan(0);
+
+    // Both cutoffs = now → prune everything including item_factors updated recently
+    const now = Date.now();
+    await stub().fetch(new Request(
+      `http://do-internal/prune?cutoff=${now}&factorCutoff=${now}`,
+      { method: 'POST' },
+    ));
+
+    const factorsAfter = await stub().fetch(
+      new Request('http://do-internal/debug/item-factors-count'),
+    );
+    const { count: cntAfter } = await factorsAfter.json() as { count: number };
+    expect(cntAfter).toBeLessThan(cntBefore);
   });
 });

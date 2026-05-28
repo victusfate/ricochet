@@ -39,6 +39,9 @@
     "test": "vitest run",
     "eval:movielens": "tsx --tsconfig tsconfig.scripts.json scripts/movielens-eval.ts"
   },
+  "engines": {
+    "node": ">=22"
+  },
   "keywords": [
     "recommendation",
     "matrix-factorization",
@@ -50,7 +53,7 @@
     "url": "https://github.com/victusfate/ricochet.git"
   },
   "devDependencies": {
-    "@cloudflare/vitest-pool-workers": "^0.15.1",
+    "@cloudflare/vitest-pool-workers": "^0.16.10",
     "@cloudflare/workers-types": "^4.20260409.1",
     "@semantic-release/changelog": "^6.0.3",
     "@semantic-release/commit-analyzer": "^13.0.1",

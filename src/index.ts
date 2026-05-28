@@ -4,6 +4,7 @@ export type { RecWorkerEnv } from './worker-env';
 import type { RecWorkerEnv } from './worker-env';
 import type { RecCoreResponse, RecRankRequest, RecResponse } from './types';
 import { REC_MAX_CANDIDATES } from './types';
+import { parseLimit, parseTopicWeights } from './parsing';
 import { isValidEvent } from './validation';
 
 const RATE_LIMIT_INTERACTIONS_MAX = 60;
@@ -45,14 +46,24 @@ function corsHeaders(request: Request, env: RecWorkerEnv): Headers {
   const h = new Headers();
   h.set('Access-Control-Allow-Origin', allow);
   h.set('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  h.set('Access-Control-Allow-Headers', 'Content-Type');
+  h.set('Access-Control-Allow-Headers', 'Content-Type, If-None-Match');
+  h.set('Access-Control-Expose-Headers', 'ETag');
   h.set('Vary', 'Origin');
   return h;
 }
 
-function json(data: unknown, request: Request, env: RecWorkerEnv, init?: ResponseInit): Response {
+function json(
+  data: unknown,
+  request: Request,
+  env: RecWorkerEnv,
+  init?: ResponseInit,
+  extraHeaders?: Record<string, string>,
+): Response {
   const headers = corsHeaders(request, env);
   headers.set('Content-Type', 'application/json; charset=utf-8');
+  if (extraHeaders) {
+    for (const [k, v] of Object.entries(extraHeaders)) headers.set(k, v);
+  }
   return new Response(JSON.stringify(data), { ...init, headers });
 }
 
@@ -67,11 +78,10 @@ function tooManyRequests(request: Request, env: RecWorkerEnv, retryAfterSeconds:
 }
 
 function getClientIp(request: Request): string | null {
-  const cfIp = request.headers.get('CF-Connecting-IP');
-  if (cfIp) return cfIp;
-  const forwarded = request.headers.get('X-Forwarded-For');
-  if (!forwarded) return null;
-  return forwarded.split(',')[0]?.trim() || null;
+  // CF-Connecting-IP is injected by Cloudflare and cannot be spoofed by the client.
+  // X-Forwarded-For is client-controlled and must NOT be trusted for rate limiting —
+  // falling back to it would let any client bypass limits by forging the header.
+  return request.headers.get('CF-Connecting-IP');
 }
 
 function checkRateLimit(
@@ -85,7 +95,14 @@ function checkRateLimit(
   const bucketKey = `${key}:${clientIp}`;
   const existing = rateBuckets.get(bucketKey);
   if (!existing || existing.resetAt <= now) {
+    // Bucket expired or missing — reset. Opportunistically sweep stale entries to
+    // prevent unbounded memory growth after traffic spikes (e.g. DDoS burst).
     rateBuckets.set(bucketKey, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    if (rateBuckets.size > 1_000) {
+      for (const [k, bucket] of rateBuckets) {
+        if (bucket.resetAt <= now) rateBuckets.delete(k);
+      }
+    }
     return { limited: false };
   }
   if (existing.count >= max) {
@@ -95,17 +112,13 @@ function checkRateLimit(
     };
   }
   existing.count += 1;
-  if (rateBuckets.size > 10_000) {
-    for (const [k, bucket] of rateBuckets) {
-      if (bucket.resetAt <= now) rateBuckets.delete(k);
-    }
-  }
   return { limited: false };
 }
 
 const MAX_BATCH_SIZE = 200;
-const MAX_LIMIT = 500;
-const DEFAULT_LIMIT = 50;
+// 50 KB is generous for 200 interaction events; reject oversized bodies early
+// before JSON.parse() allocates memory for the full payload.
+const MAX_BODY_BYTES = 50_000;
 const CACHE_TTL_SECONDS = 300;
 
 function getRecDOStub(env: RecWorkerEnv): DurableObjectStub {
@@ -113,15 +126,15 @@ function getRecDOStub(env: RecWorkerEnv): DurableObjectStub {
   return env.REC_DO.get(id);
 }
 
-function parseLimit(rawLimit: unknown): number {
-  if (typeof rawLimit === 'number' && Number.isFinite(rawLimit)) {
-    return Math.max(1, Math.min(MAX_LIMIT, Math.trunc(rawLimit)));
-  }
-  if (typeof rawLimit === 'string') {
-    const parsed = parseInt(rawLimit, 10);
-    if (!Number.isNaN(parsed)) return Math.max(1, Math.min(MAX_LIMIT, parsed));
-  }
-  return DEFAULT_LIMIT;
+/** Computes a stable ETag from the ranked article ID list. */
+async function computeETag(articleIds: string[]): Promise<string> {
+  const payload = new TextEncoder().encode(articleIds.join(','));
+  const digest = await crypto.subtle.digest('SHA-256', payload);
+  const hex = Array.from(new Uint8Array(digest))
+    .slice(0, 16)
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('');
+  return `"${hex}"`;
 }
 
 function parseCandidateArticleIds(value: unknown): { ids?: string[]; message?: string } {
@@ -226,6 +239,11 @@ export default {
       const limited = checkRateLimit(request, 'interactions', RATE_LIMIT_INTERACTIONS_MAX);
       if (limited.limited) return tooManyRequests(request, env, limited.retryAfterSeconds);
 
+      const contentLength = parseInt(request.headers.get('Content-Length') ?? '0', 10);
+      if (contentLength > MAX_BODY_BYTES) {
+        return json({ ok: false, message: 'Request body too large' }, request, env, { status: 413 });
+      }
+
       let body: { events?: unknown };
       try {
         body = await request.json() as { events?: unknown };
@@ -261,7 +279,8 @@ export default {
       return json({ ok: true, queued: valid.length }, request, env);
     }
 
-    // GET/POST /recommendations/:userId
+    // GET /recommendations/:userId  — global popularity ranking with optional feed-pool + ETag
+    // POST /recommendations/:userId — personalized ranking with candidateArticleIds and/or topicWeights
     const recsMatch = pathname.match(/^\/recommendations\/(.+)$/);
     if (recsMatch && (request.method === 'GET' || request.method === 'POST')) {
       const requestStartedAt = Date.now();
@@ -272,11 +291,16 @@ export default {
       let limit = parseLimit(url.searchParams.get('limit'));
       let candidateArticleIds: string[] | undefined;
       let candidateModeProvided = false;
+      let topicWeights: Record<string, number> | undefined;
 
       if (request.method === 'GET') {
         candidateModeProvided = url.searchParams.has('candidates');
         candidateArticleIds = parseCandidatesCsv(url.searchParams.get('candidates'));
       } else {
+        const contentLength = parseInt(request.headers.get('Content-Length') ?? '0', 10);
+        if (contentLength > MAX_BODY_BYTES) {
+          return json({ ok: false, message: 'Request body too large' }, request, env, { status: 413 });
+        }
         let body: RecRankRequest | null;
         try {
           body = await request.json() as RecRankRequest | null;
@@ -298,6 +322,13 @@ export default {
         }
         candidateArticleIds = parsed.ids;
         if (body?.limit !== undefined) limit = parseLimit(body.limit);
+        if (body?.topicWeights !== undefined) {
+          const parsedTw = parseTopicWeights(body.topicWeights);
+          if (parsedTw.message) {
+            return json({ ok: false, message: parsedTw.message }, request, env, { status: 400 });
+          }
+          topicWeights = parsedTw.weights;
+        }
       }
 
       if (candidateArticleIds && candidateArticleIds.length > REC_MAX_CANDIDATES) {
@@ -309,14 +340,23 @@ export default {
         );
       }
 
-      const cacheKey = await buildRecCacheKey(
-        userId,
-        limit,
-        candidateModeProvided ? (candidateArticleIds ?? []) : undefined,
-      );
+      // Bypass cache when topicWeights are provided — results are personalized per user preference
+      const skipCache = !!topicWeights;
+
+      const cacheKey = skipCache
+        ? ''
+        : await buildRecCacheKey(
+          userId,
+          limit,
+          candidateModeProvided ? (candidateArticleIds ?? []) : undefined,
+        );
+
       const cacheLookupStartedAt = Date.now();
-      const cached = await env.REC_STORE.get(cacheKey, 'json') as RecCoreResponse | null;
+      const cached = skipCache
+        ? null
+        : await env.REC_STORE.get(cacheKey, 'json') as RecCoreResponse | null;
       const cacheLookupMs = Date.now() - cacheLookupStartedAt;
+
       if (cached?.scoredArticleIds && cached?.diagnostics) {
         const now = Date.now();
         const response = withObservability(
@@ -332,24 +372,38 @@ export default {
             cacheWrite: 0,
           },
         );
-        return json(response, request, env);
+        const etag = await computeETag(cached.articleIds);
+        const ifNoneMatch = request.headers.get('If-None-Match');
+        if (ifNoneMatch === etag) {
+          const h = corsHeaders(request, env);
+          h.set('ETag', etag);
+          return new Response(null, { status: 304, headers: h });
+        }
+        return json(response, request, env, undefined, { ETag: etag });
       }
 
-      const cacheStatus: 'miss' | 'bypass' = cached ? 'bypass' : 'miss';
+      const cacheStatus: 'miss' | 'bypass' = skipCache ? 'bypass' : (cached ? 'bypass' : 'miss');
 
       const stub = getRecDOStub(env);
       const doFetchStartedAt = Date.now();
-      const doRes = candidateModeProvided
-        ? await stub.fetch(
+      let doRes: Response;
+      if (candidateModeProvided || topicWeights) {
+        doRes = await stub.fetch(
           new Request(`http://do-internal/recs/${encodeURIComponent(userId)}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ candidateArticleIds: candidateArticleIds ?? [], limit }),
+            body: JSON.stringify({
+              candidateArticleIds: candidateArticleIds ?? [],
+              limit,
+              ...(topicWeights ? { topicWeights } : {}),
+            }),
           }),
-        )
-        : await stub.fetch(
+        );
+      } else {
+        doRes = await stub.fetch(
           new Request(`http://do-internal/recs/${encodeURIComponent(userId)}?limit=${limit}`),
         );
+      }
       if (!doRes.ok) {
         const errorText = await doRes.text();
         return json(
@@ -363,7 +417,9 @@ export default {
       const doFetchMs = Date.now() - doFetchStartedAt;
 
       const cacheWriteStartedAt = Date.now();
-      await env.REC_STORE.put(cacheKey, JSON.stringify(recBody), { expirationTtl: CACHE_TTL_SECONDS });
+      if (!skipCache) {
+        await env.REC_STORE.put(cacheKey, JSON.stringify(recBody), { expirationTtl: CACHE_TTL_SECONDS });
+      }
       const cacheWriteMs = Date.now() - cacheWriteStartedAt;
 
       const now = Date.now();
@@ -380,7 +436,15 @@ export default {
           cacheWrite: cacheWriteMs,
         },
       );
-      return json(response, request, env);
+
+      const etag = await computeETag(recBody.articleIds);
+      const ifNoneMatch = request.headers.get('If-None-Match');
+      if (ifNoneMatch === etag) {
+        const h = corsHeaders(request, env);
+        h.set('ETag', etag);
+        return new Response(null, { status: 304, headers: h });
+      }
+      return json(response, request, env, undefined, { ETag: etag });
     }
 
     return new Response('Not Found', { status: 404, headers: corsHeaders(request, env) });
