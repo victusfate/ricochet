@@ -39,6 +39,9 @@
     "test": "vitest run",
     "eval:movielens": "tsx --tsconfig tsconfig.scripts.json scripts/movielens-eval.ts"
   },
+  "engines": {
+    "node": ">=22"
+  },
   "keywords": [
     "recommendation",
     "matrix-factorization",
