@@ -1,3 +1,9 @@
+## [1.4.1](https://github.com/victusfate/ricochet/compare/v1.4.0...v1.4.1) (2026-05-28)
+
+### Bug Fixes
+
+* add src/parsing.ts to package files list ([e8c9f5d](https://github.com/victusfate/ricochet/commit/e8c9f5d0b2c17c0f6f852c58dbba6f5d6d5c5662))
+
 ## [1.4.0](https://github.com/victusfate/ricochet/compare/v1.3.1...v1.4.0) (2026-05-28)
 
 ### Features
