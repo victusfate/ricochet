@@ -4,7 +4,7 @@ export type { RecWorkerEnv } from './worker-env';
 import type { RecWorkerEnv } from './worker-env';
 import type { RecCoreResponse, RecRankRequest, RecResponse } from './types';
 import { REC_MAX_CANDIDATES } from './types';
-import { parseLimit, parseTopicWeights } from './parsing';
+import { parseLimit, parseTopicWeights, parseCandidateArticleIds, parseCandidatesCsv } from './parsing';
 import { isValidEvent } from './validation';
 
 const RATE_LIMIT_INTERACTIONS_MAX = 60;
@@ -137,40 +137,6 @@ async function computeETag(articleIds: string[]): Promise<string> {
   return `"${hex}"`;
 }
 
-function parseCandidateArticleIds(value: unknown): { ids?: string[]; message?: string } {
-  if (value === undefined) return {};
-  if (!Array.isArray(value)) {
-    return { message: 'candidateArticleIds must be an array of non-empty strings' };
-  }
-  const deduped: string[] = [];
-  const seen = new Set<string>();
-  for (const raw of value) {
-    if (typeof raw !== 'string') return { message: 'candidateArticleIds must contain only strings' };
-    const id = raw.trim();
-    if (!id) return { message: 'candidateArticleIds must not contain empty IDs' };
-    if (seen.has(id)) continue;
-    seen.add(id);
-    deduped.push(id);
-  }
-  if (deduped.length > REC_MAX_CANDIDATES) {
-    return { message: `Too many candidateArticleIds in request; max ${REC_MAX_CANDIDATES}` };
-  }
-  return { ids: deduped };
-}
-
-function parseCandidatesCsv(raw: string | null): string[] | undefined {
-  if (raw === null) return undefined;
-  if (!raw.trim()) return [];
-  const deduped: string[] = [];
-  const seen = new Set<string>();
-  for (const part of raw.split(',')) {
-    const id = part.trim();
-    if (!id || seen.has(id)) continue;
-    seen.add(id);
-    deduped.push(id);
-  }
-  return deduped;
-}
 
 async function hashCandidateArticleIds(candidateArticleIds: string[]): Promise<string> {
   const sorted = [...candidateArticleIds].sort();
@@ -341,7 +307,7 @@ export default {
       }
 
       // Bypass cache when topicWeights are provided — results are personalized per user preference
-      const skipCache = !!topicWeights;
+      const skipCache = !!topicWeights && Object.keys(topicWeights).length > 0;
 
       const cacheKey = skipCache
         ? ''
@@ -374,7 +340,7 @@ export default {
         );
         const etag = await computeETag(cached.articleIds);
         const ifNoneMatch = request.headers.get('If-None-Match');
-        if (ifNoneMatch === etag) {
+        if (request.method === 'GET' && ifNoneMatch === etag) {
           const h = corsHeaders(request, env);
           h.set('ETag', etag);
           return new Response(null, { status: 304, headers: h });
@@ -393,7 +359,7 @@ export default {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              candidateArticleIds: candidateArticleIds ?? [],
+              ...(candidateModeProvided ? { candidateArticleIds: candidateArticleIds ?? [] } : {}),
               limit,
               ...(topicWeights ? { topicWeights } : {}),
             }),

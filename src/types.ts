@@ -41,9 +41,10 @@ export interface ScoredArticle {
   score: number;
 }
 
-/** Request body for feed-pool ranking (POST /recommendations/:userId). */
+/** Request body for POST /recommendations/:userId. */
 export interface RecRankRequest {
   candidateArticleIds?: string[];
+  topicWeights?: Record<string, number>;
   limit?: number;
 }
 
@@ -119,8 +120,3 @@ export interface ArticleScore {
   updatedAt:  number;
 }
 
-/** Request body for POST /recommendations/:userId */
-export interface RecRankRequest {
-  topicWeights?: Record<string, number>;
-  limit?: number;
-}
