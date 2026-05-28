@@ -1,3 +1,14 @@
+## [1.4.0](https://github.com/victusfate/ricochet/compare/v1.3.1...v1.4.0) (2026-05-28)
+
+### Features
+
+* POST /recommendations with topicWeights, ETag caching, and new tests ([21bd71f](https://github.com/victusfate/ricochet/commit/21bd71f159574d0f83f9e503fcf4805d5e29d89e))
+* ts index, cold-start diversity, topic-affinity, soft prune, DRY parsing ([e63624f](https://github.com/victusfate/ricochet/commit/e63624f96308629c51557ef6eca2c457ed9a4417))
+
+### Bug Fixes
+
+* **security:** harden input validation, rate limit, and timestamp handling ([4fe5982](https://github.com/victusfate/ricochet/commit/4fe59825085e7bdad96ec000b364d71761fe9db3))
+
 ## [1.3.1](https://github.com/victusfate/ricochet/compare/v1.3.0...v1.3.1) (2026-05-18)
 
 ### Bug Fixes
