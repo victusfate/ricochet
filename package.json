@@ -38,6 +38,7 @@
     "cf-typegen": "wrangler types",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
+    "docs:api": "typedoc",
     "eval:movielens": "tsx --tsconfig tsconfig.scripts.json scripts/movielens-eval.ts"
   },
   "engines": {
@@ -67,6 +68,7 @@
     "semantic-release": "^25.0.3",
     "tsup": "^8.5.1",
     "tsx": "^4.21.0",
+    "typedoc": "^0.28.19",
     "typescript": "^5.5.2",
     "vitest": "^4.1.5",
     "wrangler": "^4.81.0"

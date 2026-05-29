@@ -7,6 +7,15 @@ const MAX_ID_LENGTH    = 256;
 const MAX_SOURCE_LENGTH = 128;
 const MAX_TOPICS       = 10;
 
+/**
+ * Type guard — returns `true` when `e` is a structurally valid `InteractionEvent`.
+ *
+ * Use this to filter untrusted arrays before passing them to `mfLearnOne` or
+ * sending them to `POST /interactions`.
+ *
+ * Validates: non-empty `userId`/`articleId`/`sourceId` within length limits,
+ * 1–10 non-empty topic strings, a recognised `action`, and a positive finite `ts`.
+ */
 export function isValidEvent(e: unknown): e is InteractionEvent {
   if (typeof e !== 'object' || e === null) return false;
   const ev = e as Record<string, unknown>;

@@ -12,6 +12,9 @@ dist/
 # downloaded datasets
 data/
 
+# generated TypeDoc HTML
+docs/api/
+
 # OS / editor
 .DS_Store
 *.swp
