@@ -36,4 +36,5 @@
 - [mfLearnOne](functions/mfLearnOne.md)
 - [mfPredict](functions/mfPredict.md)
 - [newFactorRow](functions/newFactorRow.md)
+- [parseTopicWeights](functions/parseTopicWeights.md)
 - [zeroFactorRow](functions/zeroFactorRow.md)

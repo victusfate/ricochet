@@ -61,6 +61,7 @@ interface RecResponse {
     modelVersion: string;
     factorCount: number;
     candidateMode?: 'feed-pool' | 'global';
+    candidateStrategy?: 'diverse' | 'top-bias' | 'feed-pool';
     candidateCount: number;
     rankedCount: number;
     returnedCount: number;
@@ -92,6 +93,7 @@ interface RecResponse {
 ```ts
 interface RecRankRequest {
   candidateArticleIds?: string[]; // when present, rank only this caller feed-pool (max 100)
+  topicWeights?: Record<string, number>; // optional per-topic score multipliers
   limit?: number;                  // default 50, max 200
 }
 ```
