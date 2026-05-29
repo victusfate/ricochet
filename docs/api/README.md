@@ -1,3 +1,7 @@
+**@victusfate/ricochet v1.4.2**
+
+***
+
 # ricochet
 
 [![API docs](https://img.shields.io/badge/API%20docs-Markdown-blue)](docs/api/README.md)

@@ -12,8 +12,7 @@ dist/
 # downloaded datasets and generated eval fixtures
 data/
 
-# generated TypeDoc HTML
-docs/api/
+# (docs/api/ is now committed Markdown — not ignored)
 
 # OS / editor
 .DS_Store
