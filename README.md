@@ -356,13 +356,6 @@ const FEED_POOL_TTL_MS = 5 * 60 * 1000;
 
 ---
 
-## Agent integration guide
-
-[`docs/USAGE.md`](docs/USAGE.md) — complete worked examples for both the Worker REST API and
-the standalone library functions (`mfLearnOne`, `mfPredict`, `isValidEvent`, etc.).
-Included in the npm package so it is available at
-`node_modules/@victusfate/ricochet/docs/USAGE.md` after install.
-
 ## Docs
 
 Design, PRD, implementation plan, and TDD log live in `docs/biased-mf-recs/`.
