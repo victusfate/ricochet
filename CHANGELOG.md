@@ -1,3 +1,9 @@
+## [1.6.0](https://github.com/victusfate/ricochet/compare/v1.5.0...v1.6.0) (2026-05-29)
+
+### Features
+
+* extract readBoundedBody, respondWithETag helpers; use RecCacheStatus ([8240f84](https://github.com/victusfate/ricochet/commit/8240f8486cadacfccc112b1bcfb080a6bea854d7))
+
 ## [1.5.0](https://github.com/victusfate/ricochet/compare/v1.4.3...v1.5.0) (2026-05-29)
 
 ### Features
