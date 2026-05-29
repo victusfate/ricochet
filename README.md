@@ -360,8 +360,6 @@ Design, PRD, implementation plan, and TDD log live in `docs/biased-mf-recs/`.
 
 ## API docs
 
-Full reference: [`docs/api.md`](./docs/api.md)
-
 Auto-generated TypeDoc HTML is published to **GitHub Pages** on every push to
 `main` and is browsable at:
 
