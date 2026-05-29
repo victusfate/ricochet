@@ -2,7 +2,7 @@ import { RecDO } from './RecDO';
 export { RecDO };
 export type { RecWorkerEnv } from './worker-env';
 import type { RecWorkerEnv } from './worker-env';
-import type { RecCoreResponse, RecRankRequest, RecResponse } from './types';
+import type { RecCacheStatus, RecCoreResponse, RecRankRequest, RecResponse } from './types';
 import { REC_MAX_CANDIDATES } from './types';
 import { parseLimit, parseTopicWeights, parseCandidateArticleIds, parseCandidatesCsv } from './parsing';
 import { isValidEvent } from './validation';
@@ -77,6 +77,40 @@ function tooManyRequests(request: Request, env: RecWorkerEnv, retryAfterSeconds:
     JSON.stringify({ ok: false, message: 'Too Many Requests' }),
     { status: 429, headers },
   );
+}
+
+async function readBoundedBody(
+  request: Request,
+  env: RecWorkerEnv,
+): Promise<{ text: string } | { error: Response }> {
+  const contentLength = parseInt(request.headers.get('Content-Length') ?? '0', 10);
+  if (contentLength > MAX_BODY_BYTES) {
+    return { error: json({ ok: false, message: 'Request body too large' }, request, env, { status: 413 }) };
+  }
+  let text: string;
+  try {
+    text = await request.text();
+  } catch {
+    return { error: json({ ok: false, message: 'Invalid JSON body' }, request, env, { status: 400 }) };
+  }
+  if (text.length > MAX_BODY_BYTES) {
+    return { error: json({ ok: false, message: 'Request body too large' }, request, env, { status: 413 }) };
+  }
+  return { text };
+}
+
+async function respondWithETag(
+  response: RecResponse,
+  request: Request,
+  env: RecWorkerEnv,
+): Promise<Response> {
+  const etag = await computeETag(response.articleIds);
+  if (request.method === 'GET' && request.headers.get('If-None-Match') === etag) {
+    const h = corsHeaders(request, env);
+    h.set('ETag', etag);
+    return new Response(null, { status: 304, headers: h });
+  }
+  return json(response, request, env, undefined, { ETag: etag });
 }
 
 function getClientIp(request: Request): string | null {
@@ -162,7 +196,7 @@ function withObservability(
   core: RecCoreResponse,
   request: Request,
   cacheKey: string,
-  cacheStatus: 'hit' | 'miss' | 'bypass',
+  cacheStatus: RecCacheStatus,
   cacheAgeSec: number,
   timingMs: RecResponse['timingMs'],
 ): RecResponse {
@@ -207,24 +241,12 @@ export default {
       const limited = checkRateLimit(request, 'interactions', RATE_LIMIT_INTERACTIONS_MAX);
       if (limited.limited) return tooManyRequests(request, env, limited.retryAfterSeconds);
 
-      const contentLength = parseInt(request.headers.get('Content-Length') ?? '0', 10);
-      if (contentLength > MAX_BODY_BYTES) {
-        return json({ ok: false, message: 'Request body too large' }, request, env, { status: 413 });
-      }
-
-      let rawText: string;
-      try {
-        rawText = await request.text();
-      } catch {
-        return json({ ok: false, message: 'Invalid JSON body' }, request, env, { status: 400 });
-      }
-      if (rawText.length > MAX_BODY_BYTES) {
-        return json({ ok: false, message: 'Request body too large' }, request, env, { status: 413 });
-      }
+      const bodyResult = await readBoundedBody(request, env);
+      if ('error' in bodyResult) return bodyResult.error;
 
       let parsed: unknown;
       try {
-        parsed = JSON.parse(rawText) as unknown;
+        parsed = JSON.parse(bodyResult.text) as unknown;
       } catch {
         return json({ ok: false, message: 'Invalid JSON body' }, request, env, { status: 400 });
       }
@@ -280,22 +302,11 @@ export default {
         candidateModeProvided = url.searchParams.has('candidates');
         candidateArticleIds = parseCandidatesCsv(url.searchParams.get('candidates'));
       } else {
-        const contentLength = parseInt(request.headers.get('Content-Length') ?? '0', 10);
-        if (contentLength > MAX_BODY_BYTES) {
-          return json({ ok: false, message: 'Request body too large' }, request, env, { status: 413 });
-        }
-        let rawText: string;
-        try {
-          rawText = await request.text();
-        } catch {
-          return json({ ok: false, message: 'Invalid JSON body' }, request, env, { status: 400 });
-        }
-        if (rawText.length > MAX_BODY_BYTES) {
-          return json({ ok: false, message: 'Request body too large' }, request, env, { status: 413 });
-        }
+        const recsBodyResult = await readBoundedBody(request, env);
+        if ('error' in recsBodyResult) return recsBodyResult.error;
         let body: RecRankRequest | null;
         try {
-          body = JSON.parse(rawText) as RecRankRequest | null;
+          body = JSON.parse(recsBodyResult.text) as RecRankRequest | null;
         } catch {
           return json({ ok: false, message: 'Invalid JSON body' }, request, env, { status: 400 });
         }
@@ -364,17 +375,10 @@ export default {
             cacheWrite: 0,
           },
         );
-        const etag = await computeETag(cached.articleIds);
-        const ifNoneMatch = request.headers.get('If-None-Match');
-        if (request.method === 'GET' && ifNoneMatch === etag) {
-          const h = corsHeaders(request, env);
-          h.set('ETag', etag);
-          return new Response(null, { status: 304, headers: h });
-        }
-        return json(response, request, env, undefined, { ETag: etag });
+        return respondWithETag(response, request, env);
       }
 
-      const cacheStatus: 'miss' | 'bypass' = skipCache ? 'bypass' : (cached ? 'bypass' : 'miss');
+      const cacheStatus: RecCacheStatus = skipCache ? 'bypass' : (cached ? 'bypass' : 'miss');
 
       const stub = getRecDOStub(env);
       const doFetchStartedAt = Date.now();
@@ -429,14 +433,7 @@ export default {
         },
       );
 
-      const etag = await computeETag(recBody.articleIds);
-      const ifNoneMatch = request.headers.get('If-None-Match');
-      if (request.method === 'GET' && ifNoneMatch === etag) {
-        const h = corsHeaders(request, env);
-        h.set('ETag', etag);
-        return new Response(null, { status: 304, headers: h });
-      }
-      return json(response, request, env, undefined, { ETag: etag });
+      return respondWithETag(response, request, env);
     }
 
     return new Response('Not Found', { status: 404, headers: corsHeaders(request, env) });
