@@ -17,7 +17,7 @@ and a standalone npm library.
 | Method | Path | Body / Params | Response |
 |--------|------|---------------|----------|
 | `GET` | `/health` | — | `200 OK` |
-| `POST` | `/interactions` | `InteractionEvent[]` (max 200) | `200` or `400` |
+| `POST` | `/interactions` | `{ events: InteractionEvent[] }` or bare `InteractionEvent[]` (max 200 per batch) | `200` or `400` |
 | `GET` | `/recommendations/:userId` | Optional `limit`, `candidates=id1,id2,...` | `RecResponse` (JSON) |
 | `POST` | `/recommendations/:userId` | `RecRankRequest` | `RecResponse` (JSON) |
 
@@ -43,7 +43,7 @@ interface InteractionEvent {
   sourceId:  string;   // feed slug, e.g. "ars-technica"
   topics:    Topic[];  // 1–3 topics
   action:    Action;
-  ts:        number;   // epoch ms
+  ts:        number;   // epoch ms (advisory — server uses its own clock to prevent prune-window spoofing)
 }
 
 interface RecResponse {
@@ -86,7 +86,7 @@ interface RecResponse {
 ```ts
 interface RecRankRequest {
   candidateArticleIds?: string[]; // when present, rank only this caller feed-pool (max 100)
-  limit?: number;                  // default 50, max 500
+  limit?: number;                  // default 50, max 200
 }
 ```
 
@@ -107,10 +107,14 @@ When candidates are provided (`POST` body or `GET ?candidates=`), ranking is poo
     "model": "biased-mf",
     "modelVersion": "v1",
     "factorCount": 10,
+    "candidateMode": "global",
+    "candidateStrategy": "top-bias",
     "candidateCount": 200,
     "rankedCount": 187,
     "returnedCount": 50,
     "excludedDownvotes": 13,
+    "coldItemCount": 2,
+    "warmItemCount": 185,
     "coldStart": false,
     "limit": 50
   },
@@ -150,9 +154,9 @@ When candidates are provided (`POST` body or `GET ?candidates=`), ranking is poo
 await fetch('https://rec-worker.example.com/interactions', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify([{
+  body: JSON.stringify({ events: [{
     userId, articleId, sourceId, topics, action: 'upvote', ts: Date.now(),
-  }]),
+  }] }),
 });
 
 // 2. Fetch ranked IDs; intersect with locally available articles

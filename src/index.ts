@@ -11,6 +11,9 @@ const RATE_LIMIT_INTERACTIONS_MAX = 60;
 const RATE_LIMIT_RECS_MAX = 30;
 const RATE_LIMIT_WINDOW_MS = 60_000;
 
+// Per-isolate in-memory buckets — best-effort only. Cloudflare may run many isolates
+// across colos, so the effective cap is max × isolate count. Absent CF-Connecting-IP
+// (non-Cloudflare traffic) rate limiting is skipped entirely.
 const rateBuckets = new Map<string, { count: number; resetAt: number }>();
 
 const ALLOWED_ORIGINS = [
@@ -32,7 +35,6 @@ function isAllowedOrigin(origin: string, env: RecWorkerEnv): boolean {
   if (extraOriginsFromEnv(env).includes(origin)) return true;
   try {
     const u = new URL(origin);
-    if (u.protocol === 'https:' && u.hostname.endsWith('.pages.dev')) return true;
     if (u.protocol !== 'http:') return false;
     return u.hostname === 'localhost' || u.hostname === '127.0.0.1';
   } catch {
@@ -210,27 +212,42 @@ export default {
         return json({ ok: false, message: 'Request body too large' }, request, env, { status: 413 });
       }
 
-      let body: { events?: unknown };
+      let rawText: string;
       try {
-        body = await request.json() as { events?: unknown };
+        rawText = await request.text();
+      } catch {
+        return json({ ok: false, message: 'Invalid JSON body' }, request, env, { status: 400 });
+      }
+      if (rawText.length > MAX_BODY_BYTES) {
+        return json({ ok: false, message: 'Request body too large' }, request, env, { status: 413 });
+      }
+
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(rawText) as unknown;
       } catch {
         return json({ ok: false, message: 'Invalid JSON body' }, request, env, { status: 400 });
       }
 
-      if (!Array.isArray(body.events)) {
+      // Accept both shapes: bare array or { events: [...] }
+      const eventsRaw: unknown = Array.isArray(parsed) ? parsed
+        : (parsed !== null && typeof parsed === 'object')
+          ? (parsed as Record<string, unknown>).events
+          : undefined;
+      if (!Array.isArray(eventsRaw)) {
         return json(
-          { ok: false, message: 'body.events must be an array' },
+          { ok: false, message: 'body must be an InteractionEvent[] array or { events: InteractionEvent[] }' },
           request, env, { status: 400 },
         );
       }
-      if (body.events.length > MAX_BATCH_SIZE) {
+      if (eventsRaw.length > MAX_BATCH_SIZE) {
         return json(
           { ok: false, message: `Batch too large; max ${MAX_BATCH_SIZE} events` },
           request, env, { status: 400 },
         );
       }
 
-      const valid = body.events.filter(isValidEvent);
+      const valid = eventsRaw.filter(isValidEvent);
       if (valid.length === 0) {
         return json({ ok: true, queued: 0 }, request, env);
       }
@@ -267,9 +284,18 @@ export default {
         if (contentLength > MAX_BODY_BYTES) {
           return json({ ok: false, message: 'Request body too large' }, request, env, { status: 413 });
         }
+        let rawText: string;
+        try {
+          rawText = await request.text();
+        } catch {
+          return json({ ok: false, message: 'Invalid JSON body' }, request, env, { status: 400 });
+        }
+        if (rawText.length > MAX_BODY_BYTES) {
+          return json({ ok: false, message: 'Request body too large' }, request, env, { status: 413 });
+        }
         let body: RecRankRequest | null;
         try {
-          body = await request.json() as RecRankRequest | null;
+          body = JSON.parse(rawText) as RecRankRequest | null;
         } catch {
           return json({ ok: false, message: 'Invalid JSON body' }, request, env, { status: 400 });
         }
@@ -405,7 +431,7 @@ export default {
 
       const etag = await computeETag(recBody.articleIds);
       const ifNoneMatch = request.headers.get('If-None-Match');
-      if (ifNoneMatch === etag) {
+      if (request.method === 'GET' && ifNoneMatch === etag) {
         const h = corsHeaders(request, env);
         h.set('ETag', etag);
         return new Response(null, { status: 304, headers: h });

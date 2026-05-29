@@ -16,7 +16,7 @@ export interface MfParams {
   lrLatent:     number;
   l2Bias:       number;
   l2Latent:     number;
-  clipGradient: number;
+  clipError: number;
   sigmaInit:    number;
 }
 
@@ -26,7 +26,7 @@ export const DEFAULT_MF_PARAMS: MfParams = {
   lrLatent:     0.05,
   l2Bias:       0.0,
   l2Latent:     0.05,
-  clipGradient: 10.0,
+  clipError: 10.0,
   sigmaInit:    0.1,
 };
 
@@ -79,7 +79,7 @@ export function mfLearnOne(
 ): { globalMean: number; n: number; user: FactorRow; item: FactorRow } {
   const pred   = mfPredict(globalMean, user, item);
   const rawErr = rating - pred;
-  const err    = Math.max(-params.clipGradient, Math.min(params.clipGradient, rawErr));
+  const err    = Math.max(-params.clipError, Math.min(params.clipError, rawErr));
 
   const newN    = n + 1;
   const newMean = globalMean + (rating - globalMean) / newN;

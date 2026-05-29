@@ -24,7 +24,7 @@ export interface InteractionEvent {
   sourceId:  string;   // stable slug, e.g. "ars-technica"
   topics:    Topic[];  // 1–3 topics
   action:    Action;
-  ts:        number;   // epoch ms
+  ts:        number;   // epoch ms (advisory — server overwrites with its own clock to prevent prune-window spoofing)
 }
 
 // Shared request cap for feed-pool ranking candidates.
@@ -53,6 +53,7 @@ export interface RecDiagnostics {
   modelVersion: string;
   factorCount: number;
   candidateMode?: 'feed-pool' | 'global';
+  candidateStrategy?: 'diverse' | 'top-bias' | 'feed-pool';
   candidateCount: number;
   rankedCount: number;
   returnedCount: number;
@@ -97,26 +98,5 @@ export interface RecResponse extends RecCoreResponse {
   timingMs: RecTimingMs;
 }
 
-// Shared row shape for the ranking_cache SQLite table.
-export type RankingCacheEntry = {
-  cache_key:  string;
-  payload:    string;
-  expires_at: number;  // Unix ms
-};
 
-// Default TTLs for the DO-local ranking cache.
-export const REC_FEED_POOL_CACHE_TTL_MS = 5 * 60 * 1000;   // 5 min — articles change per refresh
-export const REC_GLOBAL_CACHE_TTL_MS    = 60 * 60 * 1000;  // 1 h  — stable discovery-mode results
-
-// Internal: per-article aggregated popularity stored in SQLite
-export interface ArticleScore {
-  articleId:  string;
-  score:      number;
-  reads:      number;
-  upvotes:    number;
-  downvotes:  number;
-  saves:      number;
-  seens:      number;
-  updatedAt:  number;
-}
 
