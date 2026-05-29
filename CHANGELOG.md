@@ -1,3 +1,11 @@
+## [1.4.3](https://github.com/victusfate/ricochet/compare/v1.4.2...v1.4.3) (2026-05-29)
+
+### Bug Fixes
+
+* align MAX_LIMIT with achievable pool ceilings ([fe9fa0d](https://github.com/victusfate/ricochet/commit/fe9fa0d53d6c2b83c6f1ff3d42b52f68ef0cf383))
+* chunk scoreCandidates IN(...) query to respect workerd's 100 SQL-variable cap ([3cc44f1](https://github.com/victusfate/ricochet/commit/3cc44f1bc21c285b5e923c015a1c1d299b2e5e75))
+* clamp limit to GLOBAL_CANDIDATE_LIMIT in global mode ([5016bd3](https://github.com/victusfate/ricochet/commit/5016bd306738f3fff4d488aa21584caaa01b376f))
+
 ## [1.4.2](https://github.com/victusfate/ricochet/compare/v1.4.1...v1.4.2) (2026-05-28)
 
 ### Bug Fixes
