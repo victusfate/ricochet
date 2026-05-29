@@ -1,3 +1,14 @@
+## [1.5.0](https://github.com/victusfate/ricochet/compare/v1.4.3...v1.5.0) (2026-05-29)
+
+### Features
+
+* commit synthetic eval dataset for on-demand offline evaluation ([69cb5c6](https://github.com/victusfate/ricochet/commit/69cb5c6e6eb061a595fd99227de104ffd5bcd5e6))
+
+### Bug Fixes
+
+* generate synthetic eval data on the fly instead of committing it ([900bc92](https://github.com/victusfate/ricochet/commit/900bc929b0719c9d13a897ef0d38d1a0cb128e94))
+* patch all 12 code-review findings ([56e9277](https://github.com/victusfate/ricochet/commit/56e9277208a4c8e5f4cd380e5917e987ae3d6df6))
+
 ## [1.4.3](https://github.com/victusfate/ricochet/compare/v1.4.2...v1.4.3) (2026-05-29)
 
 ### Bug Fixes
