@@ -1,4 +1,4 @@
-[**@victusfate/ricochet v1.5.0**](../README.md)
+[**@victusfate/ricochet v1.6.0**](../README.md)
 
 ***
 
@@ -6,7 +6,7 @@
 
 # Interface: MfParams
 
-Defined in: [scoring.ts:18](https://github.com/victusfate/ricochet/blob/41a11804dcf5b48c34e93617ead84c9de6a9679d/src/scoring.ts#L18)
+Defined in: [scoring.ts:18](https://github.com/victusfate/ricochet/blob/6529db6ce6df22d258291217fe235fa0e8623954/src/scoring.ts#L18)
 
 Hyperparameters for the Biased Matrix Factorization model.
 
@@ -16,7 +16,7 @@ Hyperparameters for the Biased Matrix Factorization model.
 
 > **clipError**: `number`
 
-Defined in: [scoring.ts:30](https://github.com/victusfate/ricochet/blob/41a11804dcf5b48c34e93617ead84c9de6a9679d/src/scoring.ts#L30)
+Defined in: [scoring.ts:30](https://github.com/victusfate/ricochet/blob/6529db6ce6df22d258291217fe235fa0e8623954/src/scoring.ts#L30)
 
 Clips the residual error before gradient computation to prevent runaway updates. Default: 10.
 
@@ -26,7 +26,7 @@ Clips the residual error before gradient computation to prevent runaway updates.
 
 > **l2Bias**: `number`
 
-Defined in: [scoring.ts:26](https://github.com/victusfate/ricochet/blob/41a11804dcf5b48c34e93617ead84c9de6a9679d/src/scoring.ts#L26)
+Defined in: [scoring.ts:26](https://github.com/victusfate/ricochet/blob/6529db6ce6df22d258291217fe235fa0e8623954/src/scoring.ts#L26)
 
 L2 regularisation coefficient for biases (0 = no regularisation). Default: 0.
 
@@ -36,7 +36,7 @@ L2 regularisation coefficient for biases (0 = no regularisation). Default: 0.
 
 > **l2Latent**: `number`
 
-Defined in: [scoring.ts:28](https://github.com/victusfate/ricochet/blob/41a11804dcf5b48c34e93617ead84c9de6a9679d/src/scoring.ts#L28)
+Defined in: [scoring.ts:28](https://github.com/victusfate/ricochet/blob/6529db6ce6df22d258291217fe235fa0e8623954/src/scoring.ts#L28)
 
 L2 regularisation coefficient for latent vectors. Default: 0.05.
 
@@ -46,7 +46,7 @@ L2 regularisation coefficient for latent vectors. Default: 0.05.
 
 > **lrBias**: `number`
 
-Defined in: [scoring.ts:22](https://github.com/victusfate/ricochet/blob/41a11804dcf5b48c34e93617ead84c9de6a9679d/src/scoring.ts#L22)
+Defined in: [scoring.ts:22](https://github.com/victusfate/ricochet/blob/6529db6ce6df22d258291217fe235fa0e8623954/src/scoring.ts#L22)
 
 Learning rate for bias terms. Default: 0.05.
 
@@ -56,7 +56,7 @@ Learning rate for bias terms. Default: 0.05.
 
 > **lrLatent**: `number`
 
-Defined in: [scoring.ts:24](https://github.com/victusfate/ricochet/blob/41a11804dcf5b48c34e93617ead84c9de6a9679d/src/scoring.ts#L24)
+Defined in: [scoring.ts:24](https://github.com/victusfate/ricochet/blob/6529db6ce6df22d258291217fe235fa0e8623954/src/scoring.ts#L24)
 
 Learning rate for latent factor vectors. Default: 0.05.
 
@@ -66,7 +66,7 @@ Learning rate for latent factor vectors. Default: 0.05.
 
 > **nFactors**: `number`
 
-Defined in: [scoring.ts:20](https://github.com/victusfate/ricochet/blob/41a11804dcf5b48c34e93617ead84c9de6a9679d/src/scoring.ts#L20)
+Defined in: [scoring.ts:20](https://github.com/victusfate/ricochet/blob/6529db6ce6df22d258291217fe235fa0e8623954/src/scoring.ts#L20)
 
 Number of latent factors per user/item vector. Default: 10.
 
@@ -76,6 +76,6 @@ Number of latent factors per user/item vector. Default: 10.
 
 > **sigmaInit**: `number`
 
-Defined in: [scoring.ts:32](https://github.com/victusfate/ricochet/blob/41a11804dcf5b48c34e93617ead84c9de6a9679d/src/scoring.ts#L32)
+Defined in: [scoring.ts:32](https://github.com/victusfate/ricochet/blob/6529db6ce6df22d258291217fe235fa0e8623954/src/scoring.ts#L32)
 
 Standard deviation for random normal factor initialisation. Default: 0.1.

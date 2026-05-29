@@ -1,8 +1,8 @@
-[**@victusfate/ricochet v1.5.0**](README.md)
+[**@victusfate/ricochet v1.6.0**](README.md)
 
 ***
 
-# @victusfate/ricochet v1.5.0
+# @victusfate/ricochet v1.6.0
 
 ## Interfaces
 
@@ -36,4 +36,5 @@
 - [mfLearnOne](functions/mfLearnOne.md)
 - [mfPredict](functions/mfPredict.md)
 - [newFactorRow](functions/newFactorRow.md)
+- [parseTopicWeights](functions/parseTopicWeights.md)
 - [zeroFactorRow](functions/zeroFactorRow.md)

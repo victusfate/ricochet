@@ -3,6 +3,7 @@
 
 export * from './types';
 export { isValidEvent } from './validation';
+export { parseTopicWeights } from './parsing';
 export {
   ACTION_RATING,
   DEFAULT_MF_PARAMS,
