@@ -1,8 +1,8 @@
-[**@victusfate/ricochet v1.4.2**](README.md)
+[**@victusfate/ricochet v1.5.0**](README.md)
 
 ***
 
-# @victusfate/ricochet v1.4.2
+# @victusfate/ricochet v1.5.0
 
 ## Interfaces
 

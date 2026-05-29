@@ -1,4 +1,4 @@
-[**@victusfate/ricochet v1.4.2**](../README.md)
+[**@victusfate/ricochet v1.5.0**](../README.md)
 
 ***
 
@@ -6,7 +6,7 @@
 
 # Interface: RecResponse
 
-Defined in: types.ts:95
+Defined in: [types.ts:95](https://github.com/victusfate/ricochet/blob/41a11804dcf5b48c34e93617ead84c9de6a9679d/src/types.ts#L95)
 
 ## Extends
 
@@ -18,7 +18,7 @@ Defined in: types.ts:95
 
 > **articleIds**: `string`[]
 
-Defined in: types.ts:68
+Defined in: [types.ts:68](https://github.com/victusfate/ricochet/blob/41a11804dcf5b48c34e93617ead84c9de6a9679d/src/types.ts#L68)
 
 #### Inherited from
 
@@ -30,7 +30,7 @@ Defined in: types.ts:68
 
 > **cache**: [`RecCacheInfo`](RecCacheInfo.md)
 
-Defined in: types.ts:97
+Defined in: [types.ts:97](https://github.com/victusfate/ricochet/blob/41a11804dcf5b48c34e93617ead84c9de6a9679d/src/types.ts#L97)
 
 ***
 
@@ -38,7 +38,7 @@ Defined in: types.ts:97
 
 > **diagnostics**: [`RecDiagnostics`](RecDiagnostics.md)
 
-Defined in: types.ts:71
+Defined in: [types.ts:71](https://github.com/victusfate/ricochet/blob/41a11804dcf5b48c34e93617ead84c9de6a9679d/src/types.ts#L71)
 
 #### Inherited from
 
@@ -50,7 +50,7 @@ Defined in: types.ts:71
 
 > **generatedAt**: `number`
 
-Defined in: types.ts:69
+Defined in: [types.ts:69](https://github.com/victusfate/ricochet/blob/41a11804dcf5b48c34e93617ead84c9de6a9679d/src/types.ts#L69)
 
 #### Inherited from
 
@@ -62,7 +62,7 @@ Defined in: types.ts:69
 
 > **scoredArticleIds**: [`ScoredArticle`](ScoredArticle.md)[]
 
-Defined in: types.ts:70
+Defined in: [types.ts:70](https://github.com/victusfate/ricochet/blob/41a11804dcf5b48c34e93617ead84c9de6a9679d/src/types.ts#L70)
 
 #### Inherited from
 
@@ -74,7 +74,7 @@ Defined in: types.ts:70
 
 > **timingMs**: [`RecTimingMs`](RecTimingMs.md)
 
-Defined in: types.ts:98
+Defined in: [types.ts:98](https://github.com/victusfate/ricochet/blob/41a11804dcf5b48c34e93617ead84c9de6a9679d/src/types.ts#L98)
 
 ***
 
@@ -82,4 +82,4 @@ Defined in: types.ts:98
 
 > **trace**: [`RecTraceInfo`](RecTraceInfo.md)
 
-Defined in: types.ts:96
+Defined in: [types.ts:96](https://github.com/victusfate/ricochet/blob/41a11804dcf5b48c34e93617ead84c9de6a9679d/src/types.ts#L96)
