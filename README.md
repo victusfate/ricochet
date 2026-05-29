@@ -280,6 +280,78 @@ Results on MovieLens 100K (100k ratings, 943 users, 1682 items, 80/20 split):
 | Item mean | 1.017 | 0.811 |
 | **BiasedMF** | **0.930** | **0.733** |
 
+## Migration notes
+
+### Upgrading to 1.5.x
+
+Three breaking changes require action depending on how you use ricochet.
+
+#### 1. CORS — `*.pages.dev` no longer auto-allowed (Worker deployments)
+
+The broad `*.pages.dev` wildcard was removed from the CORS allow-list. Any
+Cloudflare Pages origin that previously worked without configuration will now
+receive a `CORS error`.
+
+**Action:** add your Pages domain to `EXTRA_CORS_ORIGINS` in your `wrangler.jsonc`
+(or environment secret):
+
+```jsonc
+// wrangler.jsonc
+{
+  "vars": {
+    "EXTRA_CORS_ORIGINS": "https://your-project.pages.dev"
+  }
+}
+```
+
+Multiple origins are comma-separated:
+`"https://your-project.pages.dev,https://custom.example.com"`
+
+#### 2. `MfParams.clipGradient` renamed to `clipError` (npm library)
+
+If you pass a custom `MfParams` object you must rename the field:
+
+```ts
+// before
+const params: MfParams = { ...DEFAULT_MF_PARAMS, clipGradient: 5.0 };
+
+// after
+const params: MfParams = { ...DEFAULT_MF_PARAMS, clipError: 5.0 };
+```
+
+`DEFAULT_MF_PARAMS` is updated automatically — no change needed if you use it
+as-is.
+
+#### 3. Removed exports: `RankingCacheEntry`, `REC_FEED_POOL_CACHE_TTL_MS`, `REC_GLOBAL_CACHE_TTL_MS`, `ArticleScore` (npm library)
+
+These types and constants were exported since v1.3 but were unused internally
+and not part of the core API. They have been removed.
+
+**Action:** if you imported any of them, either inline the definitions in your
+own codebase or open an issue if you have a concrete use-case for them.
+
+```ts
+// before (no longer exported)
+import { RankingCacheEntry, REC_FEED_POOL_CACHE_TTL_MS, ArticleScore } from '@victusfate/ricochet';
+
+// after — define locally if needed, e.g.
+const FEED_POOL_TTL_MS = 5 * 60 * 1000;
+```
+
+---
+
+### Non-breaking changes in 1.5.x (no action required)
+
+| Change | Details |
+|---|---|
+| `POST /interactions` bare-array body | Both `{ events: [...] }` and a bare `InteractionEvent[]` are now accepted |
+| `limit` max corrected | Always enforced at 200; docs previously claimed 500 |
+| `diagnostics.candidateStrategy` | New field: `'diverse' \| 'top-bias' \| 'feed-pool'` indicating which candidate pool strategy ran |
+| `diagnostics.coldStart` | Meaning unchanged: `true` when the user has no factor row yet |
+| `POST /recommendations` no longer returns `304` | Was a spec violation; POSTs now always return a full body |
+
+---
+
 ## Docs
 
 Design, PRD, implementation plan, and TDD log live in `docs/biased-mf-recs/`.
