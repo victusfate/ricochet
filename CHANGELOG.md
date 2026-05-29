@@ -1,3 +1,9 @@
+## [1.6.1](https://github.com/victusfate/ricochet/compare/v1.6.0...v1.6.1) (2026-05-29)
+
+### Bug Fixes
+
+* **lib:** export parseTopicWeights from public library entry point ([6529db6](https://github.com/victusfate/ricochet/commit/6529db6ce6df22d258291217fe235fa0e8623954))
+
 ## [1.6.0](https://github.com/victusfate/ricochet/compare/v1.5.0...v1.6.0) (2026-05-29)
 
 ### Features
