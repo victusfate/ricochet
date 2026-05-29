@@ -19,6 +19,7 @@
   "files": [
     "dist",
     "docs/api",
+    "docs/USAGE.md",
     "src/lib.ts",
     "src/scoring.ts",
     "src/types.ts",
