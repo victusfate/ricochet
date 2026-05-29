@@ -1,5 +1,7 @@
 # ricochet
 
+[![API docs](https://img.shields.io/badge/API%20docs-GitHub%20Pages-blue)](https://victusfate.github.io/ricochet/)
+
 Biased Matrix Factorization recommendation engine, packaged as a Cloudflare Worker
 and a standalone npm library.
 
@@ -17,7 +19,7 @@ and a standalone npm library.
 | Method | Path | Body / Params | Response |
 |--------|------|---------------|----------|
 | `GET` | `/health` | — | `200 OK` |
-| `POST` | `/interactions` | `InteractionEvent[]` (max 200) | `200` or `400` |
+| `POST` | `/interactions` | `{ events: InteractionEvent[] }` or bare `InteractionEvent[]` (max 200 per batch) | `200` or `400` |
 | `GET` | `/recommendations/:userId` | Optional `limit`, `candidates=id1,id2,...` | `RecResponse` (JSON) |
 | `POST` | `/recommendations/:userId` | `RecRankRequest` | `RecResponse` (JSON) |
 
@@ -43,7 +45,7 @@ interface InteractionEvent {
   sourceId:  string;   // feed slug, e.g. "ars-technica"
   topics:    Topic[];  // 1–3 topics
   action:    Action;
-  ts:        number;   // epoch ms
+  ts:        number;   // epoch ms (advisory — server uses its own clock to prevent prune-window spoofing)
 }
 
 interface RecResponse {
@@ -86,7 +88,7 @@ interface RecResponse {
 ```ts
 interface RecRankRequest {
   candidateArticleIds?: string[]; // when present, rank only this caller feed-pool (max 100)
-  limit?: number;                  // default 50, max 500
+  limit?: number;                  // default 50, max 200
 }
 ```
 
@@ -107,10 +109,14 @@ When candidates are provided (`POST` body or `GET ?candidates=`), ranking is poo
     "model": "biased-mf",
     "modelVersion": "v1",
     "factorCount": 10,
+    "candidateMode": "global",
+    "candidateStrategy": "top-bias",
     "candidateCount": 200,
     "rankedCount": 187,
     "returnedCount": 50,
     "excludedDownvotes": 13,
+    "coldItemCount": 2,
+    "warmItemCount": 185,
     "coldStart": false,
     "limit": 50
   },
@@ -150,9 +156,9 @@ When candidates are provided (`POST` body or `GET ?candidates=`), ranking is poo
 await fetch('https://rec-worker.example.com/interactions', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify([{
+  body: JSON.stringify({ events: [{
     userId, articleId, sourceId, topics, action: 'upvote', ts: Date.now(),
-  }]),
+  }] }),
 });
 
 // 2. Fetch ranked IDs; intersect with locally available articles
@@ -276,6 +282,163 @@ Results on MovieLens 100K (100k ratings, 943 users, 1682 items, 80/20 split):
 | Item mean | 1.017 | 0.811 |
 | **BiasedMF** | **0.930** | **0.733** |
 
+## Migration notes
+
+### Upgrading to 1.5.x
+
+Three breaking changes require action depending on how you use ricochet.
+
+#### 1. CORS — `*.pages.dev` no longer auto-allowed (Worker deployments)
+
+The broad `*.pages.dev` wildcard was removed from the CORS allow-list. Any
+Cloudflare Pages origin that previously worked without configuration will now
+receive a `CORS error`.
+
+**Action:** add your Pages domain to `EXTRA_CORS_ORIGINS` in your `wrangler.jsonc`
+(or environment secret):
+
+```jsonc
+// wrangler.jsonc
+{
+  "vars": {
+    "EXTRA_CORS_ORIGINS": "https://your-project.pages.dev"
+  }
+}
+```
+
+Multiple origins are comma-separated:
+`"https://your-project.pages.dev,https://custom.example.com"`
+
+#### 2. `MfParams.clipGradient` renamed to `clipError` (npm library)
+
+If you pass a custom `MfParams` object you must rename the field:
+
+```ts
+// before
+const params: MfParams = { ...DEFAULT_MF_PARAMS, clipGradient: 5.0 };
+
+// after
+const params: MfParams = { ...DEFAULT_MF_PARAMS, clipError: 5.0 };
+```
+
+`DEFAULT_MF_PARAMS` is updated automatically — no change needed if you use it
+as-is.
+
+#### 3. Removed exports: `RankingCacheEntry`, `REC_FEED_POOL_CACHE_TTL_MS`, `REC_GLOBAL_CACHE_TTL_MS`, `ArticleScore` (npm library)
+
+These types and constants were exported since v1.3 but were unused internally
+and not part of the core API. They have been removed.
+
+**Action:** if you imported any of them, either inline the definitions in your
+own codebase or open an issue if you have a concrete use-case for them.
+
+```ts
+// before (no longer exported)
+import { RankingCacheEntry, REC_FEED_POOL_CACHE_TTL_MS, ArticleScore } from '@victusfate/ricochet';
+
+// after — define locally if needed, e.g.
+const FEED_POOL_TTL_MS = 5 * 60 * 1000;
+```
+
+---
+
+### Non-breaking changes in 1.5.x (no action required)
+
+| Change | Details |
+|---|---|
+| `POST /interactions` bare-array body | Both `{ events: [...] }` and a bare `InteractionEvent[]` are now accepted |
+| `limit` max corrected | Always enforced at 200; docs previously claimed 500 |
+| `diagnostics.candidateStrategy` | New field: `'diverse' \| 'top-bias' \| 'feed-pool'` indicating which candidate pool strategy ran |
+| `diagnostics.coldStart` | Meaning unchanged: `true` when the user has no factor row yet |
+| `POST /recommendations` no longer returns `304` | Was a spec violation; POSTs now always return a full body |
+
+---
+
 ## Docs
 
 Design, PRD, implementation plan, and TDD log live in `docs/biased-mf-recs/`.
+
+## API docs
+
+Full reference: [`docs/api.md`](./docs/api.md)
+
+Auto-generated TypeDoc HTML is published to **GitHub Pages** on every push to
+`main` and is browsable at:
+
+> **https://victusfate.github.io/ricochet/**
+
+### How it works (pattern to reuse in other projects)
+
+Three pieces:
+
+**1. TypeDoc config — `typedoc.json`**
+```json
+{
+  "entryPoints": ["src/lib.ts"],
+  "out": "docs/api",
+  "name": "@your-scope/your-package",
+  "readme": "README.md",
+  "includeVersion": true,
+  "excludeInternal": true,
+  "excludePrivate": true
+}
+```
+
+**2. npm script — `package.json`**
+```json
+"scripts": {
+  "docs:api": "typedoc"
+}
+```
+Install the generator: `npm install --save-dev typedoc`
+
+**3. GitHub Actions workflow — `.github/workflows/docs.yml`**
+```yaml
+name: Publish API docs
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run docs:api
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/api
+      - id: deploy
+        uses: actions/deploy-pages@v4
+```
+
+**4. One-time repo setting**
+
+> **Settings → Pages → Source → GitHub Actions**
+
+After that, every push to `main` regenerates and redeploys. Trigger manually
+any time via **Actions → "Publish API docs" → Run workflow**.
+
+Add a badge to your README to link back to the live docs:
+```markdown
+[![API docs](https://img.shields.io/badge/API%20docs-GitHub%20Pages-blue)](https://your-org.github.io/your-repo/)
+```

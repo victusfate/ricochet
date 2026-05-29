@@ -9,8 +9,11 @@ dist/
 .dev.vars
 .env
 
-# downloaded datasets
+# downloaded datasets and generated eval fixtures
 data/
+
+# generated TypeDoc HTML
+docs/api/
 
 # OS / editor
 .DS_Store

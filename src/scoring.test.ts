@@ -82,8 +82,8 @@ describe('S1 — mfLearnOne', () => {
     expect(mfPredict(mean, u, i)).toBeLessThan(0);
   });
 
-  it('clips gradient when error exceeds clipGradient', () => {
-    const params = { ...DEFAULT_MF_PARAMS, clipGradient: 1.0, l2Bias: 0 };
+  it('clips gradient when error exceeds clipError', () => {
+    const params = { ...DEFAULT_MF_PARAMS, clipError: 1.0, l2Bias: 0 };
     const user = zeroFactorRow(params);
     const item = zeroFactorRow(params);
 
@@ -95,7 +95,7 @@ describe('S1 — mfLearnOne', () => {
   });
 
   it('l2 regularisation shrinks latent weights when err = 0', () => {
-    const params = { ...DEFAULT_MF_PARAMS, l2Latent: 0.2, lrLatent: 0.1, clipGradient: 1e12 };
+    const params = { ...DEFAULT_MF_PARAMS, l2Latent: 0.2, lrLatent: 0.1, clipError: 1e12 };
     const user = { bias: 0, v: new Array(10).fill(0.5) };
     const item = { bias: 0, v: new Array(10).fill(0.5) };
 

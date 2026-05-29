@@ -158,16 +158,22 @@ export class RecDO implements DurableObject {
       if (candidateMode === 'global') limit = Math.min(limit, GLOBAL_CANDIDATE_LIMIT);
       if (candidateMode === 'feed-pool' && parsedCandidates) limit = Math.min(limit, parsedCandidates.length);
       let candidates: string[];
+      let candidateStrategy: RecDiagnostics['candidateStrategy'];
       if (parsedCandidates) {
         candidates = parsedCandidates;
+        candidateStrategy = 'feed-pool';
       } else {
         // Use diversity-bucketed candidates for cold-start users to break the
         // popularity feedback loop; warm users get pure top-by-bias candidates.
         const interactionCount = this.getInteractionCount(userId);
         const isColdStart = interactionCount < COLD_START_THRESHOLD;
-        candidates = isColdStart
-          ? this.getDiverseCandidates(GLOBAL_CANDIDATE_LIMIT)
-          : this.getTopCandidates(GLOBAL_CANDIDATE_LIMIT);
+        if (isColdStart) {
+          candidates = this.getDiverseCandidates(GLOBAL_CANDIDATE_LIMIT);
+          candidateStrategy = 'diverse';
+        } else {
+          candidates = this.getTopCandidates(GLOBAL_CANDIDATE_LIMIT);
+          candidateStrategy = 'top-bias';
+        }
       }
 
       const scored = this.scoreCandidates(userId, candidates, topicWeights);
@@ -181,6 +187,7 @@ export class RecDO implements DurableObject {
           modelVersion: 'v1',
           factorCount: MF_PARAMS.nFactors,
           candidateMode,
+          candidateStrategy,
           candidateCount: candidates.length,
           rankedCount: scored.ranked.length,
           returnedCount: topScored.length,
@@ -371,7 +378,7 @@ export class RecDO implements DurableObject {
     if (seen.size < totalLimit) {
       const fillRows = [...this.state.storage.sql.exec<Row>(
         `SELECT article_id FROM item_factors ORDER BY bias DESC LIMIT ?`,
-        totalLimit,
+        totalLimit + seen.size,
       )];
       for (const r of fillRows) {
         if (seen.size >= totalLimit) break;

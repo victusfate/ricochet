@@ -1,15 +1,22 @@
-# `@victusfate/ricochet` — Interface Reference
+# `@victusfate/ricochet` — Quick Reference
 
-Install: `npm install github:victusfate/ricochet`
+> **Full API reference:** [`docs/api.md`](./api.md)
+> **Auto-generated type docs:** run `npm run docs:api` → `docs/api/index.html`
 
-## HTTP Worker API (Cloudflare edge, deployed separately)
+Install: `npm install @victusfate/ricochet`
+
+---
+
+## HTTP Worker API
 
 | Method | Path | Body / Params | Response |
 |--------|------|---------------|----------|
 | `GET` | `/health` | — | `200 OK` |
-| `POST` | `/interactions` | `InteractionEvent[]` (max 200) | `200` or `400` |
-| `GET` | `/recommendations/:userId` | Optional `limit`, `candidates=id1,id2,...` | `RecResponse` (JSON) |
-| `POST` | `/recommendations/:userId` | `RecRankRequest` | `RecResponse` (JSON) |
+| `POST` | `/interactions` | `{ events: InteractionEvent[] }` or bare `InteractionEvent[]` (max 200) | `200` or `400` |
+| `GET` | `/recommendations/:userId` | Optional `limit` (max 200), `candidates=id1,id2,...` (max 100) | `RecResponse` |
+| `POST` | `/recommendations/:userId` | `RecRankRequest` | `RecResponse` |
+
+---
 
 ## Types
 
@@ -20,145 +27,48 @@ type Topic = 'technology' | 'science' | 'world' | 'business' |
 type Action = 'read' | 'upvote' | 'downvote' | 'save' | 'seen';
 
 interface InteractionEvent {
-  userId:    string;   // anonymous stable ID (e.g. SHA-256 of IndexedDB deviceId)
-  articleId: string;   // 16-hex ID — SHA-256(url)[:8] from rss-worker
-  sourceId:  string;   // feed slug, e.g. "ars-technica"
-  topics:    Topic[];  // 1–3 topics
+  userId:    string;   // anonymous stable ID — max 256 chars
+  articleId: string;   // 16-hex SHA-256(url)[:8] — max 256 chars
+  sourceId:  string;   // feed slug, e.g. "ars-technica" — max 128 chars
+  topics:    Topic[];  // 1–10 topics
   action:    Action;
-  ts:        number;   // epoch ms
+  ts:        number;   // epoch ms (advisory — server uses its own clock)
+}
+
+interface RecRankRequest {
+  candidateArticleIds?: string[];         // feed-pool to rank (max 100)
+  topicWeights?: Record<string, number>;  // per-topic score multipliers (0–10, max 20 keys)
+  limit?: number;                         // default 50, max 200
+}
+
+interface RecDiagnostics {
+  model:              'biased-mf';
+  modelVersion:       string;
+  factorCount:        number;
+  candidateMode?:     'feed-pool' | 'global';
+  candidateStrategy?: 'diverse' | 'top-bias' | 'feed-pool';
+  candidateCount:     number;
+  rankedCount:        number;
+  returnedCount:      number;
+  excludedDownvotes:  number;
+  coldItemCount?:     number;
+  warmItemCount?:     number;
+  coldStart:          boolean;
+  limit:              number;
 }
 
 interface RecResponse {
-  articleIds:  string[];  // ranked by personalised score, downvoted articles excluded
-  generatedAt: number;    // epoch ms
+  articleIds:       string[];
+  generatedAt:      number;
   scoredArticleIds: Array<{ articleId: string; score: number }>;
-  diagnostics: {
-    model: 'biased-mf';
-    modelVersion: string;
-    factorCount: number;
-    candidateMode?: 'feed-pool' | 'global';
-    candidateCount: number;
-    rankedCount: number;
-    returnedCount: number;
-    excludedDownvotes: number;
-    coldItemCount?: number;
-    warmItemCount?: number;
-    coldStart: boolean;
-    limit: number;
-  };
-  trace: {
-    requestId: string;
-    cfRay?: string;
-  };
-  cache: {
-    status: 'hit' | 'miss' | 'bypass';
-    key: string;
-    ttlSec: number;
-    ageSec: number;
-  };
-  timingMs: {
-    total: number;
-    cacheLookup: number;
-    doFetch: number;
-    cacheWrite: number;
-  };
+  diagnostics:      RecDiagnostics;
+  trace:  { requestId: string; cfRay?: string };
+  cache:  { status: 'hit' | 'miss' | 'bypass'; key: string; ttlSec: number; ageSec: number };
+  timingMs: { total: number; cacheLookup: number; doFetch: number; cacheWrite: number };
 }
 ```
 
-```ts
-interface RecRankRequest {
-  candidateArticleIds?: string[]; // when present, rank only this caller feed-pool (max 100)
-  limit?: number;                  // default 50, max 500
-}
-```
-
-## Observability fields
-
-`/recommendations/:userId` always returns observability fields alongside ranked IDs.
-When candidates are provided (`POST` body or `GET ?candidates=`), ranking is pool-scoped.
-
-```json
-{
-  "articleIds": ["a3f1c2d4b5e60718", "b4e2d3c4a5f60719"],
-  "generatedAt": 1778855365123,
-  "scoredArticleIds": [
-    { "articleId": "a3f1c2d4b5e60718", "score": 1.7421 },
-    { "articleId": "b4e2d3c4a5f60719", "score": 1.3396 }
-  ],
-  "diagnostics": {
-    "model": "biased-mf",
-    "modelVersion": "v1",
-    "factorCount": 10,
-    "candidateCount": 200,
-    "rankedCount": 187,
-    "returnedCount": 50,
-    "excludedDownvotes": 13,
-    "coldStart": false,
-    "limit": 50
-  },
-  "trace": {
-    "requestId": "2f4b1e51-1835-4561-95eb-40dc8bd4ddcd",
-    "cfRay": "8c2a6d0f4b8a1234-IAD"
-  },
-  "cache": {
-    "status": "hit",
-    "key": "recs:user0000000000001",
-    "ttlSec": 300,
-    "ageSec": 42
-  },
-  "timingMs": {
-    "total": 7,
-    "cacheLookup": 2,
-    "doFetch": 0,
-    "cacheWrite": 0
-  }
-}
-```
-
-## Caller pattern (news-feed)
-
-```ts
-// 1. Fire-and-forget: send interaction when user acts
-await fetch('https://rec-worker.example.com/interactions', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify([{
-    userId, articleId, sourceId, topics, action: 'upvote', ts: Date.now(),
-  }]),
-});
-
-// 2. Fetch ranked IDs; intersect with locally available articles
-const { articleIds } = await fetch(
-  `https://rec-worker.example.com/recommendations/${userId}`
-).then(r => r.json()) as RecResponse;
-
-const ranked = articleIds
-  .map(id => localArticleMap.get(id))
-  .filter(Boolean);
-```
-
-## Key contracts
-
-- **Deduplication**: same `(userId, articleId, action)` triple is stored once — safe to retry.
-- **Downvote exclusion**: `articleIds` never contains articles the user has downvoted, regardless of global popularity.
-- **Backward compatibility**: `articleIds` + `generatedAt` are preserved; new observability fields are additive.
-- **CORS integration**: production origins should be passed via `EXTRA_CORS_ORIGINS` by the integrating worker/app; ricochet code defaults to localhost origins for development.
-- **No PII**: `userId` must be an anonymous stable hash. No email, name, or device identifier.
-- **Batch cap**: `POST /interactions` rejects arrays > 200 events with `400`.
-- **Cache**: recommendations are KV-cached for a short TTL; expect up to ~60 s staleness after new interactions.
-
-## npm library (pure scoring, no CF dependency)
-
-```ts
-import {
-  mfPredict, mfLearnOne, ACTION_RATING, DEFAULT_MF_PARAMS,
-  newFactorRow, zeroFactorRow,
-  isValidEvent,
-  type InteractionEvent, type RecResponse, type MfParams, type FactorRow,
-} from '@victusfate/ricochet';
-```
-
-Use these if you want to run local re-ranking or simulate scores client-side without hitting the worker.
+---
 
 ## Action → rating mapping
 
@@ -169,3 +79,27 @@ Use these if you want to run local re-ranking or simulate scores client-side wit
 | `read` | 0.5 |
 | `seen` | 0.1 |
 | `downvote` | −1.0 |
+
+---
+
+## npm library exports
+
+```ts
+import {
+  mfPredict, mfLearnOne, newFactorRow, zeroFactorRow,
+  ACTION_RATING, DEFAULT_MF_PARAMS,
+  isValidEvent,
+  type InteractionEvent, type RecResponse, type RecRankRequest,
+  type MfParams, type FactorRow,
+} from '@victusfate/ricochet';
+```
+
+---
+
+## Key contracts
+
+- **Deduplication**: same `(userId, articleId, action)` triple stored once — safe to retry.
+- **Downvote exclusion**: `articleIds` never includes articles the user has downvoted.
+- **Cache**: KV-cached 300 s; `GET` supports `ETag` / `If-None-Match` for `304`.
+- **CORS**: production origins require `EXTRA_CORS_ORIGINS` env var.
+- **No PII**: `userId` must be an anonymous stable hash.

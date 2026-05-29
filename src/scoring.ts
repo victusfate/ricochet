@@ -2,6 +2,10 @@ import type { Action } from './types';
 
 // ─── BiasedMF ────────────────────────────────────────────────────────────────
 
+/**
+ * Maps each interaction action to a numeric training signal.
+ * Use these values when building your own rating matrix outside the Worker.
+ */
 export const ACTION_RATING: Record<Action, number> = {
   save:     2.0,
   upvote:   1.0,
@@ -10,23 +14,35 @@ export const ACTION_RATING: Record<Action, number> = {
   downvote: -1.0,
 };
 
+/** Hyperparameters for the Biased Matrix Factorization model. */
 export interface MfParams {
+  /** Number of latent factors per user/item vector. Default: 10. */
   nFactors:     number;
+  /** Learning rate for bias terms. Default: 0.05. */
   lrBias:       number;
+  /** Learning rate for latent factor vectors. Default: 0.05. */
   lrLatent:     number;
+  /** L2 regularisation coefficient for biases (0 = no regularisation). Default: 0. */
   l2Bias:       number;
+  /** L2 regularisation coefficient for latent vectors. Default: 0.05. */
   l2Latent:     number;
-  clipGradient: number;
+  /** Clips the residual error before gradient computation to prevent runaway updates. Default: 10. */
+  clipError: number;
+  /** Standard deviation for random normal factor initialisation. Default: 0.1. */
   sigmaInit:    number;
 }
 
+/**
+ * Production-tuned defaults. Override individual fields with the spread operator:
+ * `{ ...DEFAULT_MF_PARAMS, nFactors: 20 }`.
+ */
 export const DEFAULT_MF_PARAMS: MfParams = {
   nFactors:     10,
   lrBias:       0.05,
   lrLatent:     0.05,
   l2Bias:       0.0,
   l2Latent:     0.05,
-  clipGradient: 10.0,
+  clipError: 10.0,
   sigmaInit:    0.1,
 };
 
@@ -42,6 +58,10 @@ function normalSample(sigma: number): number {
   return sigma * Math.sqrt(-2 * Math.log(u1 + 1e-10)) * Math.cos(2 * Math.PI * u2);
 }
 
+/**
+ * Allocates a new factor row with bias 0 and latent vector initialised from
+ * N(0, `params.sigmaInit`). Use for a freshly seen user or item.
+ */
 export function newFactorRow(params: MfParams): FactorRow {
   return {
     bias: 0,
@@ -49,11 +69,24 @@ export function newFactorRow(params: MfParams): FactorRow {
   };
 }
 
+/**
+ * Allocates a factor row of all zeros. Used for cold-start scoring:
+ * `mfPredict(globalMean, zeroUser, itemFactor)` reduces to `globalMean + item.bias`.
+ */
 export function zeroFactorRow(params: MfParams): FactorRow {
   return { bias: 0, v: new Array(params.nFactors).fill(0) };
 }
 
-/** ŷ = ȳ + bu_u + bi_i + ⟨v_u, v_i⟩ */
+/**
+ * Computes the BiasedMF predicted score for a (user, item) pair.
+ *
+ * Formula: `ŷ = globalMean + user.bias + item.bias + dot(user.v, item.v)`
+ *
+ * @param globalMean - Running mean of all observed ratings.
+ * @param user - Learned user factor row (`bias` + latent vector `v`).
+ * @param item - Learned item factor row (`bias` + latent vector `v`).
+ * @returns Predicted rating (unbounded float).
+ */
 export function mfPredict(
   globalMean: number,
   user: FactorRow,
@@ -65,9 +98,19 @@ export function mfPredict(
 }
 
 /**
- * One online SGD step. Returns updated copies — does not mutate inputs.
- * Latent vectors use simultaneous update: both gradients are computed from
- * old vectors before either is applied.
+ * Performs one online SGD step of Biased Matrix Factorization.
+ *
+ * Returns updated copies of `globalMean`, `n`, `user`, and `item` — inputs
+ * are never mutated. Latent vectors are updated simultaneously (both gradients
+ * are computed from the old vectors before either is applied).
+ *
+ * @param params - Hyperparameters controlling learning rates, regularisation, and clipping.
+ * @param globalMean - Current running mean of all observed ratings.
+ * @param n - Number of ratings seen so far (before this one).
+ * @param user - Current user factor row.
+ * @param item - Current item factor row.
+ * @param rating - Observed rating for this (user, item) pair (see `ACTION_RATING`).
+ * @returns `{ globalMean, n, user, item }` — updated state after one SGD step.
  */
 export function mfLearnOne(
   params:     MfParams,
@@ -79,7 +122,7 @@ export function mfLearnOne(
 ): { globalMean: number; n: number; user: FactorRow; item: FactorRow } {
   const pred   = mfPredict(globalMean, user, item);
   const rawErr = rating - pred;
-  const err    = Math.max(-params.clipGradient, Math.min(params.clipGradient, rawErr));
+  const err    = Math.max(-params.clipError, Math.min(params.clipError, rawErr));
 
   const newN    = n + 1;
   const newMean = globalMean + (rating - globalMean) / newN;
