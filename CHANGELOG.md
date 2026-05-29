@@ -1,3 +1,13 @@
+## [1.7.0](https://github.com/victusfate/ricochet/compare/v1.6.1...v1.7.0) (2026-05-29)
+
+### Features
+
+* include docs/api in npm package and regenerate on publish ([7bf7914](https://github.com/victusfate/ricochet/commit/7bf7914cf45af82bf0c19d299c2b0ea0087f67e1))
+
+### Reverts
+
+* remove manual USAGE.md — rely on auto-generated TypeDoc only ([03818f6](https://github.com/victusfate/ricochet/commit/03818f62c94c0dafac1fd1e6ce3264b9c7941d57))
+
 ## [1.6.1](https://github.com/victusfate/ricochet/compare/v1.6.0...v1.6.1) (2026-05-29)
 
 ### Bug Fixes
