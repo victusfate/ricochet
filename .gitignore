@@ -9,8 +9,12 @@ dist/
 .dev.vars
 .env
 
-# downloaded datasets
-data/
+# downloaded datasets (MovieLens and other external sets)
+data/ml-100k/
+data/ml-100k.zip
+
+# synthetic dataset is committed to enable on-demand eval without downloading
+# data/synthetic-ratings.tsv
 
 # generated TypeDoc HTML
 docs/api/

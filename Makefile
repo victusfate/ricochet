@@ -36,11 +36,15 @@ $(ML100K_ZIP):
 	mkdir -p $(DATA_DIR)
 	curl -L --fail --progress-bar -o $(ML100K_ZIP) $(ML100K_URL)
 
-## Run offline BiasedMF evaluation (downloads data first if needed)
-eval: $(NODE_MODULES) $(ML100K_DATA)
+## Run offline BiasedMF evaluation using committed synthetic dataset (no download needed)
+eval: $(NODE_MODULES)
 	npm run eval:movielens
 
-## Remove downloaded dataset (keeps synthetic cache)
+## Run offline evaluation against the real MovieLens 100K dataset (downloads if needed)
+eval\:ml100k: $(NODE_MODULES) $(ML100K_DATA)
+	npm run eval:movielens
+
+## Remove downloaded dataset (committed synthetic-ratings.tsv is preserved)
 clean-data:
 	rm -rf $(ML100K_DIR) $(ML100K_ZIP)
 
