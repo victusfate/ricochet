@@ -362,4 +362,4 @@ Design, PRD, implementation plan, and TDD log live in `docs/biased-mf-recs/`.
 
 Auto-generated TypeDoc reference: **https://victusfate.github.io/ricochet/**
 
-Regenerate locally with `npm run docs:api` (output → `docs/api/`).
+Regenerate locally with `npm run docs:api` (output → `docs/api/`). Configured via `typedoc.json` with `src/lib.ts` as the entry point; published to GitHub Pages on every push to `main` via `.github/workflows/docs.yml`.
