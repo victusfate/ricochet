@@ -153,6 +153,10 @@ export class RecDO implements DurableObject {
       }
 
       const candidateMode: RecDiagnostics['candidateMode'] = parsedCandidates ? 'feed-pool' : 'global';
+      // Clamp limit to the effective pool ceiling for each mode so returnedCount
+      // never silently falls short of the requested limit.
+      if (candidateMode === 'global') limit = Math.min(limit, GLOBAL_CANDIDATE_LIMIT);
+      if (candidateMode === 'feed-pool' && parsedCandidates) limit = Math.min(limit, parsedCandidates.length);
       let candidates: string[];
       if (parsedCandidates) {
         candidates = parsedCandidates;
@@ -429,14 +433,19 @@ export class RecDO implements DurableObject {
       )].map(r => r.article_id),
     );
 
+    // workerd Durable Object SQLite caps bound parameters at 100 (SQLITE_MAX_VARIABLE_NUMBER).
+    // Chunk the IN (...) lookup so no single statement exceeds the limit.
     type ItemRow = FactorsDbRow & { article_id: string; topic: string; all_topics: string };
-    const itemRows = candidateIds.length === 0
-      ? []
-      : [...this.state.storage.sql.exec<ItemRow>(
+    const SQL_VAR_LIMIT = 100;
+    const itemRows: ItemRow[] = [];
+    for (let i = 0; i < candidateIds.length; i += SQL_VAR_LIMIT) {
+      const chunk = candidateIds.slice(i, i + SQL_VAR_LIMIT);
+      itemRows.push(...this.state.storage.sql.exec<ItemRow>(
         `SELECT article_id,bias,v0,v1,v2,v3,v4,v5,v6,v7,v8,v9,topic,all_topics
-         FROM item_factors WHERE article_id IN (${candidateIds.map(() => '?').join(',')})`,
-        ...candidateIds,
-      )];
+         FROM item_factors WHERE article_id IN (${chunk.map(() => '?').join(',')})`,
+        ...chunk,
+      ));
+    }
     const itemById = new Map(itemRows.map(row => [row.article_id, row]));
     const coldItem = zeroFactorRow(MF_PARAMS);
 

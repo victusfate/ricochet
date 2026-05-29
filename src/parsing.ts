@@ -2,7 +2,7 @@
 
 import { REC_MAX_CANDIDATES } from './types';
 
-export const MAX_LIMIT    = 500;
+export const MAX_LIMIT    = 200;
 export const DEFAULT_LIMIT = 50;
 
 export function parseLimit(value: unknown): number {
