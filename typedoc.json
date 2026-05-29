@@ -1,13 +1,11 @@
 {
   "entryPoints": ["src/lib.ts"],
   "out": "docs/api",
+  "plugin": ["typedoc-plugin-markdown"],
   "name": "@victusfate/ricochet",
   "readme": "README.md",
   "tsconfig": "tsconfig.json",
   "includeVersion": true,
-  "navigationLinks": {
-    "GitHub": "https://github.com/victusfate/ricochet"
-  },
   "categorizeByGroup": true,
   "excludeInternal": true,
   "excludePrivate": true,
