@@ -153,6 +153,9 @@ export class RecDO implements DurableObject {
       }
 
       const candidateMode: RecDiagnostics['candidateMode'] = parsedCandidates ? 'feed-pool' : 'global';
+      // Global mode pool is capped at GLOBAL_CANDIDATE_LIMIT — clamp limit so callers
+      // don't receive fewer results than requested without explanation.
+      if (candidateMode === 'global') limit = Math.min(limit, GLOBAL_CANDIDATE_LIMIT);
       let candidates: string[];
       if (parsedCandidates) {
         candidates = parsedCandidates;
