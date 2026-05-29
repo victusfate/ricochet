@@ -1,4 +1,4 @@
-[**@victusfate/ricochet v1.5.0**](../README.md)
+[**@victusfate/ricochet v1.6.0**](../README.md)
 
 ***
 
@@ -8,7 +8,7 @@
 
 > `const` **DEFAULT\_MF\_PARAMS**: [`MfParams`](../interfaces/MfParams.md)
 
-Defined in: [scoring.ts:39](https://github.com/victusfate/ricochet/blob/41a11804dcf5b48c34e93617ead84c9de6a9679d/src/scoring.ts#L39)
+Defined in: [scoring.ts:39](https://github.com/victusfate/ricochet/blob/6529db6ce6df22d258291217fe235fa0e8623954/src/scoring.ts#L39)
 
 Production-tuned defaults. Override individual fields with the spread operator:
 `{ ...DEFAULT_MF_PARAMS, nFactors: 20 }`.

@@ -1,4 +1,4 @@
-[**@victusfate/ricochet v1.5.0**](../README.md)
+[**@victusfate/ricochet v1.6.0**](../README.md)
 
 ***
 
@@ -8,4 +8,4 @@
 
 > `const` **REC\_MAX\_CANDIDATES**: `100` = `100`
 
-Defined in: [types.ts:31](https://github.com/victusfate/ricochet/blob/41a11804dcf5b48c34e93617ead84c9de6a9679d/src/types.ts#L31)
+Defined in: [types.ts:31](https://github.com/victusfate/ricochet/blob/6529db6ce6df22d258291217fe235fa0e8623954/src/types.ts#L31)
