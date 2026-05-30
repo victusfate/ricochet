@@ -52,17 +52,12 @@ function jaccard(a, b) {
   return union === 0 ? 0 : inter / union;
 }
 
-let _manifest = null;
-function manifestSet() {
-  if (_manifest) return _manifest;
-  _manifest = new Set(
-    existsSync(MANIFEST)
-      ? readFileSync(MANIFEST, 'utf8').split('\n').map((l) => l.trim()).filter(Boolean)
-      : []
-  );
-  return _manifest;
-}
-const listedInManifest = (p) => manifestSet().has(p);
+const manifestSet = new Set(
+  existsSync(MANIFEST)
+    ? readFileSync(MANIFEST, 'utf8').split('\n').map((l) => l.trim()).filter(Boolean)
+    : []
+);
+const listedInManifest = (p) => manifestSet.has(p);
 
 // Split a markdown table row on unescaped pipes only, then trim cells.
 function splitRow(row) {
@@ -85,7 +80,7 @@ function parseResolver() {
   for (const line of lines) {
     const isRow = /^\s*\|.*\|\s*$/.test(line);
     if (!isRow) {
-      if (inTable) break; // table ended
+      if (inTable && line.trim() !== '') break; // table ended (blank rows are skipped)
       continue;
     }
     const cells = splitRow(line);
@@ -177,15 +172,19 @@ function phaseAmbiguity(rows) {
       seenAnchor.set(a, r.skill);
     }
   }
-  for (const r of compiled) {
+  for (let i = 0; i < compiled.length; i++) {
+    const r = compiled[i];
     const invocation = `/${r.skill}`;
     if (!r.re.test(invocation)) {
       fail('Ambiguity', `'${r.skill}' regex does not match its own invocation '${invocation}'`);
     }
-    for (const other of compiled) {
-      if (other.skill === r.skill) continue;
+    for (let j = i + 1; j < compiled.length; j++) {
+      const other = compiled[j];
       if (other.re.test(invocation)) {
         fail('Ambiguity', `routing collision: '${invocation}' also matches '${other.skill}' regex`);
+      }
+      if (r.re.test(`/${other.skill}`)) {
+        fail('Ambiguity', `routing collision: '/${other.skill}' also matches '${r.skill}' regex`);
       }
     }
   }
@@ -236,7 +235,10 @@ function phaseMece(rows) {
   }
 }
 
-// Phase 5 — Wrapper integrity: harness wrappers must @-include the canonical.
+// Phase 5 — Wrapper integrity: harness wrappers must reference the canonical.
+// Claude and Cursor use @-include syntax (resolved by their respective parsers).
+// Antigravity bodies are literal Markdown — no include resolution — so they use
+// a standard Markdown link with an explicit read instruction instead.
 function phaseWrapperIntegrity(rows) {
   for (const r of rows) {
     const expectedCanonical = `skills/${r.skill}.md`;
@@ -255,6 +257,21 @@ function phaseWrapperIntegrity(rows) {
         fail('Wrapper', `Cursor wrapper for '${r.skill}' must contain '@../../${expectedCanonical}' — edit skills/${r.skill}.md, not the wrapper`);
       }
     }
+    // Antigravity: body is literal Markdown; check for a Markdown link to the canonical path.
+    const antigravitySkill = join(ANTIGRAVITY_SKILLS, r.skill, 'SKILL.md');
+    if (existsSync(antigravitySkill)) {
+      const src = readFileSync(antigravitySkill, 'utf8');
+      if (!src.includes(`../../../${expectedCanonical}`)) {
+        fail('Wrapper', `Antigravity skill for '${r.skill}' must contain a Markdown link to '../../../${expectedCanonical}' — edit skills/${r.skill}.md, not the wrapper`);
+      }
+    }
+    const antigravityWorkflow = join(ANTIGRAVITY_WORKFLOWS, `${r.skill}.md`);
+    if (existsSync(antigravityWorkflow)) {
+      const src = readFileSync(antigravityWorkflow, 'utf8');
+      if (!src.includes(`../../${expectedCanonical}`)) {
+        fail('Wrapper', `Antigravity workflow for '${r.skill}' must contain a Markdown link to '../../${expectedCanonical}' — edit skills/${r.skill}.md, not the wrapper`);
+      }
+    }
   }
 }
 
@@ -271,7 +288,26 @@ function phaseCursorParity(rows) {
   }
 }
 
-// Phase 6 — Scaffold-sync: every registered skill must propagate upstream.
+// Phase 7b — Antigravity parity: every skill must have both an Antigravity skill
+// wrapper and a workflow file so it's available in Google Antigravity.
+function phaseAntigravityParity(rows) {
+  for (const r of rows) {
+    const skillFile = join(ANTIGRAVITY_SKILLS, r.skill, 'SKILL.md');
+    if (!existsSync(skillFile)) {
+      fail('Antigravity', `'${r.skill}' has no Antigravity skill at ${rel(skillFile)}`);
+    } else if (!listedInManifest(`.agents/skills/${r.skill}/SKILL.md`)) {
+      warn('Antigravity', `.agents/skills/${r.skill}/SKILL.md not in scaffold manifest — won't sync downstream`);
+    }
+    const workflowFile = join(ANTIGRAVITY_WORKFLOWS, `${r.skill}.md`);
+    if (!existsSync(workflowFile)) {
+      fail('Antigravity', `'${r.skill}' has no Antigravity workflow at ${rel(workflowFile)}`);
+    } else if (!listedInManifest(`.agent/workflows/${r.skill}.md`)) {
+      warn('Antigravity', `.agent/workflows/${r.skill}.md not in scaffold manifest — won't sync downstream`);
+    }
+  }
+}
+
+// Phase 7 — Scaffold-sync: every registered skill must propagate upstream.
 function phaseScaffold(rows) {
   if (!existsSync(MANIFEST)) {
     fail('Scaffold', `manifest not found at ${rel(MANIFEST)}`);
@@ -298,6 +334,7 @@ if (rows.length) {
   phaseMece(rows);
   phaseWrapperIntegrity(rows);
   phaseCursorParity(rows);
+  phaseAntigravityParity(rows);
   phaseScaffold(rows);
 }
 
