@@ -18,6 +18,8 @@ const SKILLS_DIR = join(ROOT, '.claude', 'skills');
 const RESOLVER = join(SKILLS_DIR, 'RESOLVER.md');
 const MANIFEST = join(ROOT, '.github', 'scaffold-files.txt');
 const CURSOR_RULES = join(ROOT, '.cursor', 'rules');
+const ANTIGRAVITY_SKILLS = join(ROOT, '.agents', 'skills');
+const ANTIGRAVITY_WORKFLOWS = join(ROOT, '.agent', 'workflows');
 
 const argv = new Set(process.argv.slice(2));
 const STRICT = argv.has('--strict');
