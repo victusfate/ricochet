@@ -63,19 +63,24 @@ describe('S2 — interaction ingestion and popularity', () => {
   it('upvoted article appears in recs with higher score than only-read article', async () => {
     const upvotedId = 'upvotedarticle001';
     const readOnlyId = 'readonlyarticle01';
+    const userId = 'userAAAA00000001';
 
+    // Seed upvotedId with multiple upvotes across users so item bias (upvote=1.0)
+    // dominates over the random latent-vector noise from a single SGD step.
     await ingest([
-      makeEvent({ articleId: upvotedId, action: 'upvote' }),
-      makeEvent({ articleId: readOnlyId, action: 'read' }),
+      makeEvent({ userId,                  articleId: upvotedId,  action: 'upvote' }),
+      makeEvent({ userId: 'upv-seed-u-01', articleId: upvotedId,  action: 'upvote' }),
+      makeEvent({ userId: 'upv-seed-u-02', articleId: upvotedId,  action: 'upvote' }),
+      makeEvent({ userId: 'upv-seed-u-03', articleId: upvotedId,  action: 'upvote' }),
+      makeEvent({ userId,                  articleId: readOnlyId, action: 'read' }),
     ]);
 
-    const recs = await getRecs('userAAAA00000001');
+    const recs = await getRecs(userId);
     const upvotedIdx = recs.articleIds.indexOf(upvotedId);
     const readOnlyIdx = recs.articleIds.indexOf(readOnlyId);
 
     expect(upvotedIdx).toBeGreaterThanOrEqual(0);
     expect(readOnlyIdx).toBeGreaterThanOrEqual(0);
-    // upvote score (3) > read score (1), so upvoted comes first
     expect(upvotedIdx).toBeLessThan(readOnlyIdx);
   });
 
