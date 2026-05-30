@@ -1,3 +1,10 @@
+## [1.7.1](https://github.com/victusfate/ricochet/compare/v1.7.0...v1.7.1) (2026-05-30)
+
+### Bug Fixes
+
+* **test:** stabilise flaky S2 upvote-vs-read ranking assertion ([63595b0](https://github.com/victusfate/ricochet/commit/63595b018624217ff8cf96ff3fbb902ac3a5cdc5))
+* updated scaffold ([968fc76](https://github.com/victusfate/ricochet/commit/968fc7685a702b0407848e000dd7262100973abe))
+
 ## [1.7.0](https://github.com/victusfate/ricochet/compare/v1.6.1...v1.7.0) (2026-05-29)
 
 ### Features
