@@ -217,6 +217,230 @@ function withObservability(
   };
 }
 
+// POST /interactions
+async function handleInteractions(request: Request, env: RecWorkerEnv): Promise<Response> {
+  const limited = checkRateLimit(request, 'interactions', RATE_LIMIT_INTERACTIONS_MAX);
+  if (limited.limited) return tooManyRequests(request, env, limited.retryAfterSeconds);
+
+  const bodyResult = await readBoundedBody(request, env);
+  if ('error' in bodyResult) return bodyResult.error;
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(bodyResult.text) as unknown;
+  } catch {
+    return json({ ok: false, message: 'Invalid JSON body' }, request, env, { status: 400 });
+  }
+
+  // Accept both shapes: bare array or { events: [...] }
+  const eventsRaw: unknown = Array.isArray(parsed) ? parsed
+    : (parsed !== null && typeof parsed === 'object')
+      ? (parsed as Record<string, unknown>).events
+      : undefined;
+  if (!Array.isArray(eventsRaw)) {
+    return json(
+      { ok: false, message: 'body must be an InteractionEvent[] array or { events: InteractionEvent[] }' },
+      request, env, { status: 400 },
+    );
+  }
+  if (eventsRaw.length > MAX_BATCH_SIZE) {
+    return json(
+      { ok: false, message: `Batch too large; max ${MAX_BATCH_SIZE} events` },
+      request, env, { status: 400 },
+    );
+  }
+
+  const valid = eventsRaw.filter(isValidEvent);
+  if (valid.length === 0) {
+    return json({ ok: true, queued: 0 }, request, env);
+  }
+
+  const stub = getRecDOStub(env);
+  await stub.fetch(new Request('http://do-internal/ingest', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(valid),
+  }));
+
+  return json({ ok: true, queued: valid.length }, request, env);
+}
+
+// GET /recommendations/:userId  — global popularity ranking with optional feed-pool + ETag
+// POST /recommendations/:userId — personalized ranking with candidateArticleIds and/or topicWeights
+async function handleRecommendations(
+  request: Request,
+  env: RecWorkerEnv,
+  url: URL,
+  userId: string,
+): Promise<Response> {
+  const requestStartedAt = Date.now();
+  const limited = checkRateLimit(request, 'recs', RATE_LIMIT_RECS_MAX);
+  if (limited.limited) return tooManyRequests(request, env, limited.retryAfterSeconds);
+
+  let body: RecRankRequest | null = null;
+  if (request.method === 'POST') {
+    const recsBodyResult = await readBoundedBody(request, env);
+    if ('error' in recsBodyResult) return recsBodyResult.error;
+    try {
+      body = JSON.parse(recsBodyResult.text) as RecRankRequest | null;
+    } catch {
+      return json({ ok: false, message: 'Invalid JSON body' }, request, env, { status: 400 });
+    }
+  }
+  const parsed = request.method === 'GET'
+    ? parseRankRequest({ method: 'GET', searchParams: url.searchParams })
+    : parseRankRequest({ method: 'POST', searchParams: url.searchParams, body });
+  if (!parsed.ok) {
+    return json({ ok: false, message: parsed.message }, request, env, { status: 400 });
+  }
+  const { limit, candidateModeProvided, candidateArticleIds, topicWeights } = parsed.value;
+
+  // Bypass cache when topicWeights are provided — results are personalized per user preference
+  const skipCache = !!topicWeights && Object.keys(topicWeights).length > 0;
+
+  const cacheKey = skipCache
+    ? ''
+    : await buildRecCacheKey(
+      userId,
+      limit,
+      candidateModeProvided ? (candidateArticleIds ?? []) : undefined,
+    );
+
+  const cacheLookupStartedAt = Date.now();
+  const cached = skipCache
+    ? null
+    : await env.REC_STORE.get(cacheKey, 'json') as RecCoreResponse | null;
+  const cacheLookupMs = Date.now() - cacheLookupStartedAt;
+
+  if (cached?.scoredArticleIds && cached?.diagnostics) {
+    const now = Date.now();
+    const response = withObservability(
+      cached,
+      request,
+      cacheKey,
+      'hit',
+      Math.max(0, Math.floor((now - cached.generatedAt) / 1000)),
+      {
+        total: now - requestStartedAt,
+        cacheLookup: cacheLookupMs,
+        doFetch: 0,
+        cacheWrite: 0,
+      },
+    );
+    return respondWithETag(response, request, env);
+  }
+
+  const cacheStatus: RecCacheStatus = skipCache ? 'bypass' : (cached ? 'bypass' : 'miss');
+
+  const stub = getRecDOStub(env);
+  const doFetchStartedAt = Date.now();
+  let doRes: Response;
+  if (candidateModeProvided || topicWeights) {
+    doRes = await stub.fetch(
+      new Request(`http://do-internal/recs/${encodeURIComponent(userId)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...(candidateModeProvided ? { candidateArticleIds: candidateArticleIds ?? [] } : {}),
+          limit,
+          ...(topicWeights ? { topicWeights } : {}),
+        }),
+      }),
+    );
+  } else {
+    doRes = await stub.fetch(
+      new Request(`http://do-internal/recs/${encodeURIComponent(userId)}?limit=${limit}`),
+    );
+  }
+  if (!doRes.ok) {
+    const errorText = await doRes.text();
+    return json(
+      { ok: false, message: errorText || 'Failed to rank recommendations' },
+      request,
+      env,
+      { status: doRes.status },
+    );
+  }
+  const recBody = await doRes.json() as RecCoreResponse;
+  const doFetchMs = Date.now() - doFetchStartedAt;
+
+  const cacheWriteStartedAt = Date.now();
+  if (!skipCache) {
+    await env.REC_STORE.put(cacheKey, JSON.stringify(recBody), { expirationTtl: CACHE_TTL_SECONDS });
+  }
+  const cacheWriteMs = Date.now() - cacheWriteStartedAt;
+
+  const now = Date.now();
+  const response = withObservability(
+    recBody,
+    request,
+    cacheKey,
+    cacheStatus,
+    0,
+    {
+      total: now - requestStartedAt,
+      cacheLookup: cacheLookupMs,
+      doFetch: doFetchMs,
+      cacheWrite: cacheWriteMs,
+    },
+  );
+
+  return respondWithETag(response, request, env);
+}
+
+// GET /rec/articles?ids=<csv>  — up to ARTICLES_GET_MAX IDs
+// POST /rec/articles           — up to ARTICLES_POST_MAX IDs in body
+async function handleArticles(request: Request, env: RecWorkerEnv, url: URL): Promise<Response> {
+  let ids: string[];
+
+  if (request.method === 'GET') {
+    const raw = url.searchParams.get('ids') ?? '';
+    ids = raw.split(',').map(s => s.trim()).filter(Boolean);
+    if (ids.length === 0) {
+      return json({ ok: false, message: 'ids query param is required' }, request, env, { status: 400 });
+    }
+    if (ids.length > ARTICLES_GET_MAX) {
+      return json(
+        { ok: false, message: `Too many ids; max ${ARTICLES_GET_MAX} for GET` },
+        request, env, { status: 400 },
+      );
+    }
+  } else if (request.method === 'POST') {
+    const bodyResult = await readBoundedBody(request, env);
+    if ('error' in bodyResult) return bodyResult.error;
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(bodyResult.text) as unknown;
+    } catch {
+      return json({ ok: false, message: 'Invalid JSON body' }, request, env, { status: 400 });
+    }
+    if (parsed === null || typeof parsed !== 'object' || !Array.isArray((parsed as Record<string, unknown>).ids)) {
+      return json({ ok: false, message: 'body must be { ids: string[] }' }, request, env, { status: 400 });
+    }
+    ids = ((parsed as Record<string, unknown>).ids as unknown[]).map(String);
+    if (ids.length === 0) {
+      return json({ articles: [] }, request, env);
+    }
+    if (ids.length > ARTICLES_POST_MAX) {
+      return json(
+        { ok: false, message: `Too many ids; max ${ARTICLES_POST_MAX} for POST` },
+        request, env, { status: 400 },
+      );
+    }
+  } else {
+    return new Response('Method Not Allowed', { status: 405, headers: corsHeaders(request, env) });
+  }
+
+  const stub = getRecDOStub(env);
+  const doRes = await stub.fetch(new Request('http://do-internal/articles', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ids }),
+  }));
+  const articlesBody = await doRes.json();
+  return json(articlesBody, request, env);
+}
+
 export default {
   async scheduled(_controller: ScheduledController, env: RecWorkerEnv, ctx: ExecutionContext): Promise<void> {
     const stub = getRecDOStub(env);
@@ -231,230 +455,21 @@ export default {
     const url = new URL(request.url);
     const pathname = url.pathname.replace(/\/+$/, '') || '/';
 
-    // GET /health
     if (pathname === '/health' && request.method === 'GET') {
       return json({ ok: true, service: 'ricochet-rec' }, request, env);
     }
 
-    // POST /interactions
     if (pathname === '/interactions' && request.method === 'POST') {
-      const limited = checkRateLimit(request, 'interactions', RATE_LIMIT_INTERACTIONS_MAX);
-      if (limited.limited) return tooManyRequests(request, env, limited.retryAfterSeconds);
-
-      const bodyResult = await readBoundedBody(request, env);
-      if ('error' in bodyResult) return bodyResult.error;
-
-      let parsed: unknown;
-      try {
-        parsed = JSON.parse(bodyResult.text) as unknown;
-      } catch {
-        return json({ ok: false, message: 'Invalid JSON body' }, request, env, { status: 400 });
-      }
-
-      // Accept both shapes: bare array or { events: [...] }
-      const eventsRaw: unknown = Array.isArray(parsed) ? parsed
-        : (parsed !== null && typeof parsed === 'object')
-          ? (parsed as Record<string, unknown>).events
-          : undefined;
-      if (!Array.isArray(eventsRaw)) {
-        return json(
-          { ok: false, message: 'body must be an InteractionEvent[] array or { events: InteractionEvent[] }' },
-          request, env, { status: 400 },
-        );
-      }
-      if (eventsRaw.length > MAX_BATCH_SIZE) {
-        return json(
-          { ok: false, message: `Batch too large; max ${MAX_BATCH_SIZE} events` },
-          request, env, { status: 400 },
-        );
-      }
-
-      const valid = eventsRaw.filter(isValidEvent);
-      if (valid.length === 0) {
-        return json({ ok: true, queued: 0 }, request, env);
-      }
-
-      const stub = getRecDOStub(env);
-      await stub.fetch(new Request('http://do-internal/ingest', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(valid),
-      }));
-
-      return json({ ok: true, queued: valid.length }, request, env);
+      return handleInteractions(request, env);
     }
 
-    // GET /recommendations/:userId  — global popularity ranking with optional feed-pool + ETag
-    // POST /recommendations/:userId — personalized ranking with candidateArticleIds and/or topicWeights
     const recsMatch = pathname.match(/^\/recommendations\/(.+)$/);
     if (recsMatch && (request.method === 'GET' || request.method === 'POST')) {
-      const requestStartedAt = Date.now();
-      const limited = checkRateLimit(request, 'recs', RATE_LIMIT_RECS_MAX);
-      if (limited.limited) return tooManyRequests(request, env, limited.retryAfterSeconds);
-
-      const userId = recsMatch[1];
-      let body: RecRankRequest | null = null;
-      if (request.method === 'POST') {
-        const recsBodyResult = await readBoundedBody(request, env);
-        if ('error' in recsBodyResult) return recsBodyResult.error;
-        try {
-          body = JSON.parse(recsBodyResult.text) as RecRankRequest | null;
-        } catch {
-          return json({ ok: false, message: 'Invalid JSON body' }, request, env, { status: 400 });
-        }
-      }
-      const parsed = request.method === 'GET'
-        ? parseRankRequest({ method: 'GET', searchParams: url.searchParams })
-        : parseRankRequest({ method: 'POST', searchParams: url.searchParams, body });
-      if (!parsed.ok) {
-        return json({ ok: false, message: parsed.message }, request, env, { status: 400 });
-      }
-      const { limit, candidateModeProvided, candidateArticleIds, topicWeights } = parsed.value;
-
-      // Bypass cache when topicWeights are provided — results are personalized per user preference
-      const skipCache = !!topicWeights && Object.keys(topicWeights).length > 0;
-
-      const cacheKey = skipCache
-        ? ''
-        : await buildRecCacheKey(
-          userId,
-          limit,
-          candidateModeProvided ? (candidateArticleIds ?? []) : undefined,
-        );
-
-      const cacheLookupStartedAt = Date.now();
-      const cached = skipCache
-        ? null
-        : await env.REC_STORE.get(cacheKey, 'json') as RecCoreResponse | null;
-      const cacheLookupMs = Date.now() - cacheLookupStartedAt;
-
-      if (cached?.scoredArticleIds && cached?.diagnostics) {
-        const now = Date.now();
-        const response = withObservability(
-          cached,
-          request,
-          cacheKey,
-          'hit',
-          Math.max(0, Math.floor((now - cached.generatedAt) / 1000)),
-          {
-            total: now - requestStartedAt,
-            cacheLookup: cacheLookupMs,
-            doFetch: 0,
-            cacheWrite: 0,
-          },
-        );
-        return respondWithETag(response, request, env);
-      }
-
-      const cacheStatus: RecCacheStatus = skipCache ? 'bypass' : (cached ? 'bypass' : 'miss');
-
-      const stub = getRecDOStub(env);
-      const doFetchStartedAt = Date.now();
-      let doRes: Response;
-      if (candidateModeProvided || topicWeights) {
-        doRes = await stub.fetch(
-          new Request(`http://do-internal/recs/${encodeURIComponent(userId)}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              ...(candidateModeProvided ? { candidateArticleIds: candidateArticleIds ?? [] } : {}),
-              limit,
-              ...(topicWeights ? { topicWeights } : {}),
-            }),
-          }),
-        );
-      } else {
-        doRes = await stub.fetch(
-          new Request(`http://do-internal/recs/${encodeURIComponent(userId)}?limit=${limit}`),
-        );
-      }
-      if (!doRes.ok) {
-        const errorText = await doRes.text();
-        return json(
-          { ok: false, message: errorText || 'Failed to rank recommendations' },
-          request,
-          env,
-          { status: doRes.status },
-        );
-      }
-      const recBody = await doRes.json() as RecCoreResponse;
-      const doFetchMs = Date.now() - doFetchStartedAt;
-
-      const cacheWriteStartedAt = Date.now();
-      if (!skipCache) {
-        await env.REC_STORE.put(cacheKey, JSON.stringify(recBody), { expirationTtl: CACHE_TTL_SECONDS });
-      }
-      const cacheWriteMs = Date.now() - cacheWriteStartedAt;
-
-      const now = Date.now();
-      const response = withObservability(
-        recBody,
-        request,
-        cacheKey,
-        cacheStatus,
-        0,
-        {
-          total: now - requestStartedAt,
-          cacheLookup: cacheLookupMs,
-          doFetch: doFetchMs,
-          cacheWrite: cacheWriteMs,
-        },
-      );
-
-      return respondWithETag(response, request, env);
+      return handleRecommendations(request, env, url, recsMatch[1]);
     }
 
-    // GET /rec/articles?ids=<csv>  — up to ARTICLES_GET_MAX IDs
-    // POST /rec/articles           — up to ARTICLES_POST_MAX IDs in body
     if (pathname === '/rec/articles') {
-      let ids: string[];
-
-      if (request.method === 'GET') {
-        const raw = url.searchParams.get('ids') ?? '';
-        ids = raw.split(',').map(s => s.trim()).filter(Boolean);
-        if (ids.length === 0) {
-          return json({ ok: false, message: 'ids query param is required' }, request, env, { status: 400 });
-        }
-        if (ids.length > ARTICLES_GET_MAX) {
-          return json(
-            { ok: false, message: `Too many ids; max ${ARTICLES_GET_MAX} for GET` },
-            request, env, { status: 400 },
-          );
-        }
-      } else if (request.method === 'POST') {
-        const bodyResult = await readBoundedBody(request, env);
-        if ('error' in bodyResult) return bodyResult.error;
-        let parsed: unknown;
-        try {
-          parsed = JSON.parse(bodyResult.text) as unknown;
-        } catch {
-          return json({ ok: false, message: 'Invalid JSON body' }, request, env, { status: 400 });
-        }
-        if (parsed === null || typeof parsed !== 'object' || !Array.isArray((parsed as Record<string, unknown>).ids)) {
-          return json({ ok: false, message: 'body must be { ids: string[] }' }, request, env, { status: 400 });
-        }
-        ids = ((parsed as Record<string, unknown>).ids as unknown[]).map(String);
-        if (ids.length === 0) {
-          return json({ articles: [] }, request, env);
-        }
-        if (ids.length > ARTICLES_POST_MAX) {
-          return json(
-            { ok: false, message: `Too many ids; max ${ARTICLES_POST_MAX} for POST` },
-            request, env, { status: 400 },
-          );
-        }
-      } else {
-        return new Response('Method Not Allowed', { status: 405, headers: corsHeaders(request, env) });
-      }
-
-      const stub = getRecDOStub(env);
-      const doRes = await stub.fetch(new Request('http://do-internal/articles', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids }),
-      }));
-      const articlesBody = await doRes.json();
-      return json(articlesBody, request, env);
+      return handleArticles(request, env, url);
     }
 
     return new Response('Not Found', { status: 404, headers: corsHeaders(request, env) });

@@ -21,6 +21,13 @@ const GLOBAL_CANDIDATE_LIMIT = 200;
 const COLD_START_THRESHOLD = 30;
 const PER_TOPIC_DIVERSITY  = 10; // max articles per topic in cold-start pool
 
+// Debug count endpoints — fixed allowlist of table names (never user input).
+const DEBUG_COUNT_TABLES: Record<string, string> = {
+  '/debug/user-factors-count': 'user_factors',
+  '/debug/item-factors-count': 'item_factors',
+  '/debug/interactions-count': 'interactions',
+};
+
 type FactorsDbRow = {
   bias: number;
   v0: number; v1: number; v2: number; v3: number; v4: number;
@@ -112,95 +119,11 @@ export class RecDO implements DurableObject {
 
     const recsMatch = url.pathname.match(/^\/recs\/(.+)$/);
     if (recsMatch && (request.method === 'GET' || request.method === 'POST')) {
-      const userId = decodeURIComponent(recsMatch[1]);
-      let reqBody: unknown = null;
-      if (request.method === 'POST') {
-        try {
-          reqBody = await request.json();
-        } catch {
-          return Response.json({ ok: false, message: 'Invalid JSON body' }, { status: 400 });
-        }
-      }
-      const parsedReq = request.method === 'GET'
-        ? parseRankRequest({ method: 'GET', searchParams: url.searchParams })
-        : parseRankRequest({ method: 'POST', searchParams: url.searchParams, body: reqBody });
-      if (!parsedReq.ok) {
-        return Response.json({ ok: false, message: parsedReq.message }, { status: 400 });
-      }
-      const { candidateArticleIds: parsedCandidates, topicWeights } = parsedReq.value;
-      let limit = parsedReq.value.limit;
-
-      const candidateMode: RecDiagnostics['candidateMode'] = parsedCandidates ? 'feed-pool' : 'global';
-      // Clamp limit to the effective pool ceiling for each mode so returnedCount
-      // never silently falls short of the requested limit.
-      if (candidateMode === 'global') limit = Math.min(limit, GLOBAL_CANDIDATE_LIMIT);
-      if (candidateMode === 'feed-pool' && parsedCandidates) limit = Math.min(limit, parsedCandidates.length);
-      let candidates: string[];
-      let candidateStrategy: RecDiagnostics['candidateStrategy'];
-      if (parsedCandidates) {
-        candidates = parsedCandidates;
-        candidateStrategy = 'feed-pool';
-      } else {
-        // Use diversity-bucketed candidates for cold-start users to break the
-        // popularity feedback loop; warm users get pure top-by-bias candidates.
-        const interactionCount = this.getInteractionCount(userId);
-        const isColdStart = interactionCount < COLD_START_THRESHOLD;
-        if (isColdStart) {
-          candidates = this.getDiverseCandidates(GLOBAL_CANDIDATE_LIMIT);
-          candidateStrategy = 'diverse';
-        } else {
-          candidates = this.getTopCandidates(GLOBAL_CANDIDATE_LIMIT);
-          candidateStrategy = 'top-bias';
-        }
-      }
-
-      const scored = this.scoreCandidates(userId, candidates, topicWeights);
-      const topScored = scored.ranked.slice(0, limit);
-      const body: RecCoreResponse = {
-        articleIds: topScored.map(r => r.articleId),
-        generatedAt: Date.now(),
-        scoredArticleIds: topScored,
-        diagnostics: {
-          model: 'biased-mf',
-          modelVersion: 'v1',
-          factorCount: MF_PARAMS.nFactors,
-          candidateMode,
-          candidateStrategy,
-          candidateCount: candidates.length,
-          rankedCount: scored.ranked.length,
-          returnedCount: topScored.length,
-          excludedDownvotes: scored.excludedDownvotes,
-          coldItemCount: scored.coldItemCount,
-          warmItemCount: scored.warmItemCount,
-          coldStart: scored.coldStart,
-          limit,
-        },
-      };
-      return new Response(
-        JSON.stringify(body),
-        { headers: { 'Content-Type': 'application/json' } },
-      );
+      return this.handleRecs(request, url, recsMatch[1]);
     }
 
     if (url.pathname === '/articles' && request.method === 'POST') {
-      const { ids } = await request.json() as { ids: string[] };
-      const SQL_VAR_LIMIT = 100;
-      type MetaRow = { article_id: string; source_id: string; all_topics: string };
-      const rows: MetaRow[] = [];
-      for (let i = 0; i < ids.length; i += SQL_VAR_LIMIT) {
-        const chunk = ids.slice(i, i + SQL_VAR_LIMIT);
-        rows.push(...this.state.storage.sql.exec<MetaRow>(
-          `SELECT article_id, source_id, all_topics FROM item_factors
-           WHERE article_id IN (${chunk.map(() => '?').join(',')})`,
-          ...chunk,
-        ));
-      }
-      const articles = rows.map(r => {
-        let topics: string[] = [];
-        try { topics = JSON.parse(r.all_topics || '[]') as string[]; } catch { /* empty */ }
-        return { articleId: r.article_id, sourceId: r.source_id, topics };
-      });
-      return Response.json({ articles });
+      return this.handleArticles(request);
     }
 
     if (url.pathname === '/prune' && request.method === 'POST') {
@@ -224,29 +147,104 @@ export class RecDO implements DurableObject {
       )];
       return Response.json(row ?? { mean: 0, n: 0 });
     }
-    if (url.pathname === '/debug/user-factors-count' && request.method === 'GET') {
+    const countTable = DEBUG_COUNT_TABLES[url.pathname];
+    if (countTable && request.method === 'GET') {
       type CountRow = { count: number };
       const [row] = [...this.state.storage.sql.exec<CountRow>(
-        `SELECT COUNT(*) AS count FROM user_factors`,
-      )];
-      return Response.json(row);
-    }
-    if (url.pathname === '/debug/item-factors-count' && request.method === 'GET') {
-      type CountRow = { count: number };
-      const [row] = [...this.state.storage.sql.exec<CountRow>(
-        `SELECT COUNT(*) AS count FROM item_factors`,
-      )];
-      return Response.json(row);
-    }
-    if (url.pathname === '/debug/interactions-count' && request.method === 'GET') {
-      type CountRow = { count: number };
-      const [row] = [...this.state.storage.sql.exec<CountRow>(
-        `SELECT COUNT(*) AS count FROM interactions`,
+        `SELECT COUNT(*) AS count FROM ${countTable}`,
       )];
       return Response.json(row);
     }
 
     return new Response('Not Found', { status: 404 });
+  }
+
+  private async handleRecs(request: Request, url: URL, rawUserId: string): Promise<Response> {
+    const userId = decodeURIComponent(rawUserId);
+    let reqBody: unknown = null;
+    if (request.method === 'POST') {
+      try {
+        reqBody = await request.json();
+      } catch {
+        return Response.json({ ok: false, message: 'Invalid JSON body' }, { status: 400 });
+      }
+    }
+    const parsedReq = request.method === 'GET'
+      ? parseRankRequest({ method: 'GET', searchParams: url.searchParams })
+      : parseRankRequest({ method: 'POST', searchParams: url.searchParams, body: reqBody });
+    if (!parsedReq.ok) {
+      return Response.json({ ok: false, message: parsedReq.message }, { status: 400 });
+    }
+    const { candidateArticleIds: parsedCandidates, topicWeights } = parsedReq.value;
+    let limit = parsedReq.value.limit;
+
+    const candidateMode: RecDiagnostics['candidateMode'] = parsedCandidates ? 'feed-pool' : 'global';
+    // Clamp limit to the effective pool ceiling for each mode so returnedCount
+    // never silently falls short of the requested limit.
+    limit = Math.min(limit, parsedCandidates ? parsedCandidates.length : GLOBAL_CANDIDATE_LIMIT);
+    let candidates: string[];
+    let candidateStrategy: RecDiagnostics['candidateStrategy'];
+    if (parsedCandidates) {
+      candidates = parsedCandidates;
+      candidateStrategy = 'feed-pool';
+    } else {
+      // Use diversity-bucketed candidates for cold-start users to break the
+      // popularity feedback loop; warm users get pure top-by-bias candidates.
+      const interactionCount = this.getInteractionCount(userId);
+      const isColdStart = interactionCount < COLD_START_THRESHOLD;
+      if (isColdStart) {
+        candidates = this.getDiverseCandidates(GLOBAL_CANDIDATE_LIMIT);
+        candidateStrategy = 'diverse';
+      } else {
+        candidates = this.getTopCandidates(GLOBAL_CANDIDATE_LIMIT);
+        candidateStrategy = 'top-bias';
+      }
+    }
+
+    const scored = this.scoreCandidates(userId, candidates, topicWeights);
+    const topScored = scored.ranked.slice(0, limit);
+    const body: RecCoreResponse = {
+      articleIds: topScored.map(r => r.articleId),
+      generatedAt: Date.now(),
+      scoredArticleIds: topScored,
+      diagnostics: {
+        model: 'biased-mf',
+        modelVersion: 'v1',
+        factorCount: MF_PARAMS.nFactors,
+        candidateMode,
+        candidateStrategy,
+        candidateCount: candidates.length,
+        rankedCount: scored.ranked.length,
+        returnedCount: topScored.length,
+        excludedDownvotes: scored.excludedDownvotes,
+        coldItemCount: scored.coldItemCount,
+        warmItemCount: scored.warmItemCount,
+        coldStart: scored.coldStart,
+        limit,
+      },
+    };
+    return Response.json(body);
+  }
+
+  private async handleArticles(request: Request): Promise<Response> {
+    const { ids } = await request.json() as { ids: string[] };
+    const SQL_VAR_LIMIT = 100;
+    type MetaRow = { article_id: string; source_id: string; all_topics: string };
+    const rows: MetaRow[] = [];
+    for (let i = 0; i < ids.length; i += SQL_VAR_LIMIT) {
+      const chunk = ids.slice(i, i + SQL_VAR_LIMIT);
+      rows.push(...this.state.storage.sql.exec<MetaRow>(
+        `SELECT article_id, source_id, all_topics FROM item_factors
+         WHERE article_id IN (${chunk.map(() => '?').join(',')})`,
+        ...chunk,
+      ));
+    }
+    const articles = rows.map(r => {
+      let topics: string[] = [];
+      try { topics = JSON.parse(r.all_topics || '[]') as string[]; } catch { /* empty */ }
+      return { articleId: r.article_id, sourceId: r.source_id, topics };
+    });
+    return Response.json({ articles });
   }
 
   // ── S3: BiasedMF online learning ──────────────────────────────────────────
