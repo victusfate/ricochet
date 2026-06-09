@@ -1,4 +1,4 @@
-[**@victusfate/ricochet v1.7.1**](../README.md)
+[**@victusfate/ricochet v1.10.0**](../README.md)
 
 ***
 
@@ -8,7 +8,7 @@
 
 > **isValidEvent**(`e`): `e is InteractionEvent`
 
-Defined in: [validation.ts:19](https://github.com/victusfate/ricochet/blob/05e1024558aa1ca4731aa49eeb4d4c7706ca9bcb/src/validation.ts#L19)
+Defined in: [validation.ts:23](https://github.com/victusfate/ricochet/blob/main/src/validation.ts#L23)
 
 Type guard — returns `true` when `e` is a structurally valid `InteractionEvent`.
 
@@ -16,7 +16,9 @@ Use this to filter untrusted arrays before passing them to `mfLearnOne` or
 sending them to `POST /interactions`.
 
 Validates: non-empty `userId`/`articleId`/`sourceId` within length limits,
-1–10 non-empty topic strings, a recognised `action`, and a positive finite `ts`.
+1–10 taxonomy topics, a recognised `action`, and a positive finite `ts`.
+Off-taxonomy topics are rejected — fabricated topics would otherwise pollute
+the diversity-bucketed cold-start candidate pool.
 
 ## Parameters
 

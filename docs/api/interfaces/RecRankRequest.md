@@ -1,4 +1,4 @@
-[**@victusfate/ricochet v1.7.1**](../README.md)
+[**@victusfate/ricochet v1.10.0**](../README.md)
 
 ***
 
@@ -6,7 +6,7 @@
 
 # Interface: RecRankRequest
 
-Defined in: [types.ts:59](https://github.com/victusfate/ricochet/blob/05e1024558aa1ca4731aa49eeb4d4c7706ca9bcb/src/types.ts#L59)
+Defined in: [types.ts:63](https://github.com/victusfate/ricochet/blob/main/src/types.ts#L63)
 
 Request body for POST /recommendations/:userId.
 
@@ -16,7 +16,7 @@ Request body for POST /recommendations/:userId.
 
 > `optional` **candidateArticleIds?**: `string`[]
 
-Defined in: [types.ts:60](https://github.com/victusfate/ricochet/blob/05e1024558aa1ca4731aa49eeb4d4c7706ca9bcb/src/types.ts#L60)
+Defined in: [types.ts:64](https://github.com/victusfate/ricochet/blob/main/src/types.ts#L64)
 
 ***
 
@@ -24,7 +24,7 @@ Defined in: [types.ts:60](https://github.com/victusfate/ricochet/blob/05e1024558
 
 > `optional` **limit?**: `number`
 
-Defined in: [types.ts:62](https://github.com/victusfate/ricochet/blob/05e1024558aa1ca4731aa49eeb4d4c7706ca9bcb/src/types.ts#L62)
+Defined in: [types.ts:66](https://github.com/victusfate/ricochet/blob/main/src/types.ts#L66)
 
 ***
 
@@ -32,4 +32,4 @@ Defined in: [types.ts:62](https://github.com/victusfate/ricochet/blob/05e1024558
 
 > `optional` **topicWeights?**: `Record`\<`string`, `number`\>
 
-Defined in: [types.ts:61](https://github.com/victusfate/ricochet/blob/05e1024558aa1ca4731aa49eeb4d4c7706ca9bcb/src/types.ts#L61)
+Defined in: [types.ts:65](https://github.com/victusfate/ricochet/blob/main/src/types.ts#L65)

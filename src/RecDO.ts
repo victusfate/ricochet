@@ -1,14 +1,13 @@
 import type {
-  InteractionEvent, RecCoreResponse, RecRankRequest, RecDiagnostics, ScoredArticle,
+  InteractionEvent, RecCoreResponse, RecDiagnostics, ScoredArticle,
 } from './types';
-import { REC_MAX_CANDIDATES } from './types';
 import type { RecWorkerEnv } from './worker-env';
 import {
   ACTION_RATING, DEFAULT_MF_PARAMS, newFactorRow, zeroFactorRow,
   mfLearnOne, mfPredict,
 } from './scoring';
 import type { FactorRow } from './scoring';
-import { parseLimit, parseTopicWeights, parseCandidateArticleIds, parseCandidatesCsv } from './parsing';
+import { parseRankRequest } from './parsing';
 
 const INTERACTION_RETENTION_MS = 30  * 24 * 60 * 60 * 1000; // 30 days
 const FACTOR_RETENTION_MS      = 180 * 24 * 60 * 60 * 1000; // 180 days — decoupled from interactions
@@ -21,6 +20,26 @@ const GLOBAL_CANDIDATE_LIMIT = 200;
  */
 const COLD_START_THRESHOLD = 30;
 const PER_TOPIC_DIVERSITY  = 10; // max articles per topic in cold-start pool
+
+// workerd Durable Object SQLite caps bound parameters at 100 (SQLITE_MAX_VARIABLE_NUMBER).
+const SQL_VAR_LIMIT = 100;
+
+/** Canonical error response: `{ ok: false, message }` (no CORS — DO is internal-only). */
+function badRequest(message: string): Response {
+  return Response.json({ ok: false, message }, { status: 400 });
+}
+
+/** Defensively decodes an `all_topics` JSON column; malformed or empty values yield []. */
+function parseTopicsJson(raw: string): string[] {
+  try { return JSON.parse(raw || '[]') as string[]; } catch { return []; }
+}
+
+// Debug count endpoints — fixed allowlist of table names (never user input).
+const DEBUG_COUNT_TABLES: Record<string, string> = {
+  '/debug/user-factors-count': 'user_factors',
+  '/debug/item-factors-count': 'item_factors',
+  '/debug/interactions-count': 'interactions',
+};
 
 type FactorsDbRow = {
   bias: number;
@@ -104,125 +123,35 @@ export class RecDO implements DurableObject {
     const url = new URL(request.url);
 
     if (url.pathname === '/ingest' && request.method === 'POST') {
-      const events = await request.json() as InteractionEvent[];
+      let events: unknown;
+      try {
+        events = await request.json();
+      } catch {
+        return badRequest('Invalid JSON body');
+      }
+      if (!Array.isArray(events)) {
+        return badRequest('body must be an InteractionEvent[] array');
+      }
       this.state.storage.transactionSync(() => {
-        for (const event of events) this.learnOne(event);
+        // Read global_state once per batch and write it once — per-event math is
+        // unchanged because the running mean is threaded through learnOne.
+        const gs = this.readGlobalState();
+        for (const event of events as InteractionEvent[]) this.learnOne(event, gs);
+        this.state.storage.sql.exec(
+          `UPDATE global_state SET mean = ?, n = ? WHERE id = 1`,
+          gs.mean, gs.n,
+        );
       });
       return new Response(null, { status: 204 });
     }
 
     const recsMatch = url.pathname.match(/^\/recs\/(.+)$/);
     if (recsMatch && (request.method === 'GET' || request.method === 'POST')) {
-      const userId = decodeURIComponent(recsMatch[1]);
-      let limit = parseLimit(url.searchParams.get('limit'));
-      let parsedCandidates: string[] | undefined;
-      let topicWeights: Record<string, number> | undefined;
-
-      if (request.method === 'GET') {
-        parsedCandidates = parseCandidatesCsv(url.searchParams.get('candidates'));
-      } else {
-        let body: RecRankRequest | null;
-        try {
-          body = await request.json() as RecRankRequest | null;
-        } catch {
-          return Response.json({ ok: false, message: 'Invalid JSON body' }, { status: 400 });
-        }
-        if (body !== null && typeof body !== 'object') {
-          return Response.json({ ok: false, message: 'Invalid JSON body' }, { status: 400 });
-        }
-        const parsed = parseCandidateArticleIds(body?.candidateArticleIds);
-        if (parsed.message) {
-          return Response.json({ ok: false, message: parsed.message }, { status: 400 });
-        }
-        parsedCandidates = parsed.ids;
-        if (body?.limit !== undefined) limit = parseLimit(body.limit);
-        if (body?.topicWeights !== undefined) {
-          const parsedTw = parseTopicWeights(body.topicWeights);
-          if (parsedTw.message) {
-            return Response.json({ ok: false, message: parsedTw.message }, { status: 400 });
-          }
-          topicWeights = parsedTw.weights;
-        }
-      }
-
-      if (parsedCandidates && parsedCandidates.length > REC_MAX_CANDIDATES) {
-        return Response.json(
-          { ok: false, message: `Too many candidateArticleIds in request; max ${REC_MAX_CANDIDATES}` },
-          { status: 400 },
-        );
-      }
-
-      const candidateMode: RecDiagnostics['candidateMode'] = parsedCandidates ? 'feed-pool' : 'global';
-      // Clamp limit to the effective pool ceiling for each mode so returnedCount
-      // never silently falls short of the requested limit.
-      if (candidateMode === 'global') limit = Math.min(limit, GLOBAL_CANDIDATE_LIMIT);
-      if (candidateMode === 'feed-pool' && parsedCandidates) limit = Math.min(limit, parsedCandidates.length);
-      let candidates: string[];
-      let candidateStrategy: RecDiagnostics['candidateStrategy'];
-      if (parsedCandidates) {
-        candidates = parsedCandidates;
-        candidateStrategy = 'feed-pool';
-      } else {
-        // Use diversity-bucketed candidates for cold-start users to break the
-        // popularity feedback loop; warm users get pure top-by-bias candidates.
-        const interactionCount = this.getInteractionCount(userId);
-        const isColdStart = interactionCount < COLD_START_THRESHOLD;
-        if (isColdStart) {
-          candidates = this.getDiverseCandidates(GLOBAL_CANDIDATE_LIMIT);
-          candidateStrategy = 'diverse';
-        } else {
-          candidates = this.getTopCandidates(GLOBAL_CANDIDATE_LIMIT);
-          candidateStrategy = 'top-bias';
-        }
-      }
-
-      const scored = this.scoreCandidates(userId, candidates, topicWeights);
-      const topScored = scored.ranked.slice(0, limit);
-      const body: RecCoreResponse = {
-        articleIds: topScored.map(r => r.articleId),
-        generatedAt: Date.now(),
-        scoredArticleIds: topScored,
-        diagnostics: {
-          model: 'biased-mf',
-          modelVersion: 'v1',
-          factorCount: MF_PARAMS.nFactors,
-          candidateMode,
-          candidateStrategy,
-          candidateCount: candidates.length,
-          rankedCount: scored.ranked.length,
-          returnedCount: topScored.length,
-          excludedDownvotes: scored.excludedDownvotes,
-          coldItemCount: scored.coldItemCount,
-          warmItemCount: scored.warmItemCount,
-          coldStart: scored.coldStart,
-          limit,
-        },
-      };
-      return new Response(
-        JSON.stringify(body),
-        { headers: { 'Content-Type': 'application/json' } },
-      );
+      return this.handleRecs(request, url, recsMatch[1]);
     }
 
     if (url.pathname === '/articles' && request.method === 'POST') {
-      const { ids } = await request.json() as { ids: string[] };
-      const SQL_VAR_LIMIT = 100;
-      type MetaRow = { article_id: string; source_id: string; all_topics: string };
-      const rows: MetaRow[] = [];
-      for (let i = 0; i < ids.length; i += SQL_VAR_LIMIT) {
-        const chunk = ids.slice(i, i + SQL_VAR_LIMIT);
-        rows.push(...this.state.storage.sql.exec<MetaRow>(
-          `SELECT article_id, source_id, all_topics FROM item_factors
-           WHERE article_id IN (${chunk.map(() => '?').join(',')})`,
-          ...chunk,
-        ));
-      }
-      const articles = rows.map(r => {
-        let topics: string[] = [];
-        try { topics = JSON.parse(r.all_topics || '[]') as string[]; } catch { /* empty */ }
-        return { articleId: r.article_id, sourceId: r.source_id, topics };
-      });
-      return Response.json({ articles });
+      return this.handleArticles(request);
     }
 
     if (url.pathname === '/prune' && request.method === 'POST') {
@@ -246,24 +175,11 @@ export class RecDO implements DurableObject {
       )];
       return Response.json(row ?? { mean: 0, n: 0 });
     }
-    if (url.pathname === '/debug/user-factors-count' && request.method === 'GET') {
+    const countTable = DEBUG_COUNT_TABLES[url.pathname];
+    if (countTable && request.method === 'GET') {
       type CountRow = { count: number };
       const [row] = [...this.state.storage.sql.exec<CountRow>(
-        `SELECT COUNT(*) AS count FROM user_factors`,
-      )];
-      return Response.json(row);
-    }
-    if (url.pathname === '/debug/item-factors-count' && request.method === 'GET') {
-      type CountRow = { count: number };
-      const [row] = [...this.state.storage.sql.exec<CountRow>(
-        `SELECT COUNT(*) AS count FROM item_factors`,
-      )];
-      return Response.json(row);
-    }
-    if (url.pathname === '/debug/interactions-count' && request.method === 'GET') {
-      type CountRow = { count: number };
-      const [row] = [...this.state.storage.sql.exec<CountRow>(
-        `SELECT COUNT(*) AS count FROM interactions`,
+        `SELECT COUNT(*) AS count FROM ${countTable}`,
       )];
       return Response.json(row);
     }
@@ -271,30 +187,151 @@ export class RecDO implements DurableObject {
     return new Response('Not Found', { status: 404 });
   }
 
+  private async handleRecs(request: Request, url: URL, rawUserId: string): Promise<Response> {
+    let userId: string;
+    try {
+      userId = decodeURIComponent(rawUserId);
+    } catch {
+      return badRequest('Invalid userId encoding');
+    }
+    let reqBody: unknown = null;
+    if (request.method === 'POST') {
+      try {
+        reqBody = await request.json();
+      } catch {
+        return badRequest('Invalid JSON body');
+      }
+    }
+    const parsedReq = request.method === 'GET'
+      ? parseRankRequest({ method: 'GET', searchParams: url.searchParams })
+      : parseRankRequest({ method: 'POST', searchParams: url.searchParams, body: reqBody });
+    if (!parsedReq.ok) {
+      return badRequest(parsedReq.message);
+    }
+    const { candidateArticleIds: parsedCandidates, topicWeights } = parsedReq.value;
+    let limit = parsedReq.value.limit;
+
+    const candidateMode: RecDiagnostics['candidateMode'] = parsedCandidates ? 'feed-pool' : 'global';
+    // Clamp limit to the effective pool ceiling for each mode so returnedCount
+    // never silently falls short of the requested limit.
+    limit = Math.min(limit, parsedCandidates ? parsedCandidates.length : GLOBAL_CANDIDATE_LIMIT);
+    let candidates: string[];
+    let candidateStrategy: RecDiagnostics['candidateStrategy'];
+    if (parsedCandidates) {
+      candidates = parsedCandidates;
+      candidateStrategy = 'feed-pool';
+    } else {
+      // Use diversity-bucketed candidates for cold-start users to break the
+      // popularity feedback loop; warm users get pure top-by-bias candidates.
+      const interactionCount = this.getInteractionCount(userId);
+      const isColdStart = interactionCount < COLD_START_THRESHOLD;
+      if (isColdStart) {
+        candidates = this.getDiverseCandidates(GLOBAL_CANDIDATE_LIMIT);
+        candidateStrategy = 'diverse';
+      } else {
+        candidates = this.getTopCandidates(GLOBAL_CANDIDATE_LIMIT);
+        candidateStrategy = 'top-bias';
+      }
+    }
+
+    const scored = this.scoreCandidates(userId, candidates, topicWeights);
+    const topScored = scored.ranked.slice(0, limit);
+    const body: RecCoreResponse = {
+      articleIds: topScored.map(r => r.articleId),
+      generatedAt: Date.now(),
+      scoredArticleIds: topScored,
+      diagnostics: {
+        model: 'biased-mf',
+        modelVersion: 'v1',
+        factorCount: MF_PARAMS.nFactors,
+        candidateMode,
+        candidateStrategy,
+        candidateCount: candidates.length,
+        rankedCount: scored.ranked.length,
+        returnedCount: topScored.length,
+        excludedDownvotes: scored.excludedDownvotes,
+        coldItemCount: scored.coldItemCount,
+        warmItemCount: scored.warmItemCount,
+        coldStart: scored.coldStart,
+        limit,
+      },
+    };
+    return Response.json(body);
+  }
+
+  private async handleArticles(request: Request): Promise<Response> {
+    let parsed: unknown;
+    try {
+      parsed = await request.json();
+    } catch {
+      return badRequest('Invalid JSON body');
+    }
+    if (parsed === null || typeof parsed !== 'object' || !Array.isArray((parsed as { ids?: unknown }).ids)) {
+      return badRequest('body must be { ids: string[] }');
+    }
+    const ids = ((parsed as { ids: unknown[] }).ids).map(String);
+    type MetaRow = { article_id: string; source_id: string; all_topics: string };
+    const rows = this.selectByIdsChunked<MetaRow>(
+      `SELECT article_id, source_id, all_topics FROM item_factors WHERE article_id IN`,
+      ids,
+    );
+    const articles = rows.map(r => ({
+      articleId: r.article_id,
+      sourceId: r.source_id,
+      topics: parseTopicsJson(r.all_topics),
+    }));
+    return Response.json({ articles });
+  }
+
+  /**
+   * Runs `sqlPrefix (?,?,...)` over `ids` in chunks of SQL_VAR_LIMIT so no
+   * statement exceeds workerd's bound-parameter cap.
+   */
+  private selectByIdsChunked<T extends Record<string, SqlStorageValue>>(
+    sqlPrefix: string,
+    ids: string[],
+  ): T[] {
+    const rows: T[] = [];
+    for (let i = 0; i < ids.length; i += SQL_VAR_LIMIT) {
+      const chunk = ids.slice(i, i + SQL_VAR_LIMIT);
+      rows.push(...this.state.storage.sql.exec<T>(
+        `${sqlPrefix} (${chunk.map(() => '?').join(',')})`,
+        ...chunk,
+      ));
+    }
+    return rows;
+  }
+
   // ── S3: BiasedMF online learning ──────────────────────────────────────────
 
-  learnOne(event: InteractionEvent): void {
+  /** Reads the singleton global_state row. */
+  private readGlobalState(): { mean: number; n: number } {
+    type GsRow = { mean: number; n: number };
+    const [gs] = [...this.state.storage.sql.exec<GsRow>(
+      `SELECT mean, n FROM global_state WHERE id = 1`,
+    )];
+    return { mean: gs?.mean ?? 0, n: gs?.n ?? 0 };
+  }
+
+  /**
+   * Learns from one event, updating factor tables and the passed-in global
+   * state (mutated; the caller persists it once per batch).
+   */
+  learnOne(event: InteractionEvent, gs: { mean: number; n: number }): void {
     const rating = ACTION_RATING[event.action];
     if (rating === undefined) return;
 
     const now = Date.now();
 
-    // Dedup — only learn from each (user, article, action) triple once
-    type CntRow = { cnt: number };
-    const [dup] = [...this.state.storage.sql.exec<CntRow>(
-      `SELECT COUNT(*) AS cnt FROM interactions
-       WHERE user_id = ? AND article_id = ? AND action = ?`,
-      event.userId, event.articleId, event.action,
-    )];
-    if ((dup?.cnt ?? 0) > 0) {
-      // Use server-side `now` rather than event.ts — client-supplied timestamps
-      // could be set far in the future to bypass the 30-day prune retention window.
-      this.state.storage.sql.exec(
-        `UPDATE interactions SET ts = ? WHERE user_id = ? AND article_id = ? AND action = ?`,
-        now, event.userId, event.articleId, event.action,
-      );
-      return;
-    }
+    // Dedup — only learn from each (user, article, action) triple once.
+    // The UPDATE doubles as the existence check (rowsWritten > 0 means dup);
+    // it refreshes ts with server-side `now` rather than event.ts because
+    // client-supplied timestamps could bypass the 30-day prune window.
+    const dup = this.state.storage.sql.exec(
+      `UPDATE interactions SET ts = ? WHERE user_id = ? AND article_id = ? AND action = ?`,
+      now, event.userId, event.articleId, event.action,
+    );
+    if (dup.rowsWritten > 0) return;
 
     this.state.storage.sql.exec(
       `INSERT INTO interactions (user_id, article_id, source_id, action, topics, ts)
@@ -303,13 +340,6 @@ export class RecDO implements DurableObject {
       // Use server-side `now` to prevent timestamp spoofing that could bypass pruning.
       event.action, JSON.stringify(event.topics), now,
     );
-
-    type GsRow = { mean: number; n: number };
-    const [gs] = [...this.state.storage.sql.exec<GsRow>(
-      `SELECT mean, n FROM global_state WHERE id = 1`,
-    )];
-    const globalMean = gs?.mean ?? 0;
-    const n          = gs?.n   ?? 0;
 
     const [uDbRow] = [...this.state.storage.sql.exec<FactorsDbRow>(
       `SELECT bias,v0,v1,v2,v3,v4,v5,v6,v7,v8,v9
@@ -325,12 +355,9 @@ export class RecDO implements DurableObject {
     )];
     const iFactor = iDbRow ? dbRowToFactorRow(iDbRow) : newFactorRow(MF_PARAMS);
 
-    const res = mfLearnOne(MF_PARAMS, globalMean, n, uFactor, iFactor, rating);
-
-    this.state.storage.sql.exec(
-      `UPDATE global_state SET mean = ?, n = ? WHERE id = 1`,
-      res.globalMean, res.n,
-    );
+    const res = mfLearnOne(MF_PARAMS, gs.mean, gs.n, uFactor, iFactor, rating);
+    gs.mean = res.globalMean;
+    gs.n    = res.n;
 
     const uv = res.user.v;
     this.state.storage.sql.exec(
@@ -438,11 +465,7 @@ export class RecDO implements DurableObject {
     coldItemCount: number;
     warmItemCount: number;
   } {
-    type GsRow = { mean: number };
-    const [gs] = [...this.state.storage.sql.exec<GsRow>(
-      `SELECT mean FROM global_state WHERE id = 1`,
-    )];
-    const globalMean = gs?.mean ?? 0;
+    const globalMean = this.readGlobalState().mean;
 
     const [uDbRow] = [...this.state.storage.sql.exec<FactorsDbRow>(
       `SELECT bias,v0,v1,v2,v3,v4,v5,v6,v7,v8,v9
@@ -461,20 +484,19 @@ export class RecDO implements DurableObject {
       )].map(r => r.article_id),
     );
 
-    // workerd Durable Object SQLite caps bound parameters at 100 (SQLITE_MAX_VARIABLE_NUMBER).
-    // Chunk the IN (...) lookup so no single statement exceeds the limit.
     type ItemRow = FactorsDbRow & { article_id: string; topic: string; all_topics: string };
-    const SQL_VAR_LIMIT = 100;
-    const itemRows: ItemRow[] = [];
-    for (let i = 0; i < candidateIds.length; i += SQL_VAR_LIMIT) {
-      const chunk = candidateIds.slice(i, i + SQL_VAR_LIMIT);
-      itemRows.push(...this.state.storage.sql.exec<ItemRow>(
-        `SELECT article_id,bias,v0,v1,v2,v3,v4,v5,v6,v7,v8,v9,topic,all_topics
-         FROM item_factors WHERE article_id IN (${chunk.map(() => '?').join(',')})`,
-        ...chunk,
-      ));
-    }
-    const itemById = new Map(itemRows.map(row => [row.article_id, row]));
+    const itemRows = this.selectByIdsChunked<ItemRow>(
+      `SELECT article_id,bias,v0,v1,v2,v3,v4,v5,v6,v7,v8,v9,topic,all_topics
+       FROM item_factors WHERE article_id IN`,
+      candidateIds,
+    );
+    // Pre-parse topics once per row — not inside the per-candidate loop.
+    // Fallback to primary topic for rows written before all_topics was added.
+    const itemById = new Map(itemRows.map(row => {
+      let topics = parseTopicsJson(row.all_topics);
+      if (topics.length === 0) topics = [row.topic];
+      return [row.article_id, { row, topics }] as const;
+    }));
     const coldItem = zeroFactorRow(MF_PARAMS);
 
     let excludedDownvotes = 0;
@@ -487,18 +509,14 @@ export class RecDO implements DurableObject {
         excludedDownvotes += 1;
         continue;
       }
-      const row = itemById.get(candidateId);
-      const baseScore = mfPredict(globalMean, uFactor, row ? dbRowToFactorRow(row) : coldItem);
+      const item = itemById.get(candidateId);
+      const baseScore = mfPredict(globalMean, uFactor, item ? dbRowToFactorRow(item.row) : coldItem);
       let weight = 1.0;
-      if (topicWeights && row) {
+      if (topicWeights && item) {
         // Check all stored topics so multi-topic articles match any weighted topic.
-        // Fallback to primary topic for rows written before all_topics was added.
-        let topics: string[];
-        try { topics = JSON.parse(row.all_topics || '[]') as string[]; } catch { topics = []; }
-        if (topics.length === 0) topics.push(row.topic);
-        weight = topics.reduce((best, t) => Math.max(best, topicWeights[t] ?? 1.0), 1.0);
+        weight = item.topics.reduce((best, t) => Math.max(best, topicWeights[t] ?? 1.0), 1.0);
       }
-      if (row) {
+      if (item) {
         warmItemCount += 1;
       } else {
         coldItemCount += 1;
@@ -519,8 +537,9 @@ export class RecDO implements DurableObject {
   /**
    * Removes stale data on two independent schedules:
    * - interactions: pruned after 30 days (high-volume, drives model freshness)
-   * - item_factors: pruned after 180 days based on updated_at (retains learned item
-   *   quality for seasonal / long-tail articles even after interaction rows age out)
+   * - item_factors and user_factors: pruned after 180 days based on updated_at
+   *   (retains learned quality for seasonal / long-tail articles and returning
+   *   users even after interaction rows age out)
    *
    * Decoupling the two cutoffs means an article quiet for 31 days keeps its learned
    * bias until 180 days have elapsed, avoiding cold-restart quality regression.
@@ -533,6 +552,12 @@ export class RecDO implements DurableObject {
     // Guard updated_at > 0 prevents accidental deletion of rows with the schema default value.
     this.state.storage.sql.exec(
       `DELETE FROM item_factors WHERE updated_at < ? AND updated_at > 0`,
+      factorCutoff,
+    );
+    // user_factors shares the factor retention window — without this, anonymous
+    // client-minted userIds grow the table without bound.
+    this.state.storage.sql.exec(
+      `DELETE FROM user_factors WHERE updated_at < ? AND updated_at > 0`,
       factorCutoff,
     );
   }

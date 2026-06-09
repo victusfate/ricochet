@@ -1,6 +1,7 @@
 import { SELF, env } from 'cloudflare:test';
 import { describe, it, expect } from 'vitest';
 import type { InteractionEvent, RecCoreResponse, RecResponse } from './types';
+import { buildRecCacheKey } from './index';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -292,7 +293,7 @@ describe('S4 — prune old interactions', () => {
     expect(pruneRes.status).toBe(204);
 
     // Clear KV cache so getRecs reflects post-prune DO state
-    await env.REC_STORE.delete(`recs:${userId}:limit:50`);
+    await env.REC_STORE.delete(await buildRecCacheKey(userId, 50));
 
     // Article should be gone from recs (item_factors row removed too)
     const after = await getRecs(userId);
@@ -412,11 +413,16 @@ describe('S3 — learnOne', () => {
 
     await ingest([makeEvent({ userId, articleId, action: 'read' })]);
     await ingest([makeEvent({ userId, articleId, action: 'read' })]);  // duplicate
-    // save+upvote+read on higherId gives clear signal over the single deduped read
+    // save+upvote+read on higherId gives clear signal over the single deduped read.
+    // Seed higherId with saves from multiple users so its item bias dominates over
+    // random latent-vector noise (same anti-flake pattern as the S2 dedup test).
     await ingest([
       makeEvent({ userId, articleId: higherId, action: 'save' }),
       makeEvent({ userId, articleId: higherId, action: 'upvote' }),
       makeEvent({ userId, articleId: higherId, action: 'read' }),
+      makeEvent({ userId: 's3e-seed-u1', articleId: higherId, action: 'save' }),
+      makeEvent({ userId: 's3e-seed-u2', articleId: higherId, action: 'save' }),
+      makeEvent({ userId: 's3e-seed-u3', articleId: higherId, action: 'save' }),
     ]);
 
     const recs = await getRecs(userId);

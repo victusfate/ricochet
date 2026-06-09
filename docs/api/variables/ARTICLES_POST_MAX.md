@@ -1,4 +1,4 @@
-[**@victusfate/ricochet v1.7.1**](../README.md)
+[**@victusfate/ricochet v1.10.0**](../README.md)
 
 ***
 
@@ -8,4 +8,4 @@
 
 > `const` **ARTICLES\_POST\_MAX**: `500` = `500`
 
-Defined in: [types.ts:35](https://github.com/victusfate/ricochet/blob/05e1024558aa1ca4731aa49eeb4d4c7706ca9bcb/src/types.ts#L35)
+Defined in: [types.ts:39](https://github.com/victusfate/ricochet/blob/main/src/types.ts#L39)

@@ -5,6 +5,7 @@
   "name": "@victusfate/ricochet",
   "readme": "README.md",
   "tsconfig": "tsconfig.json",
+  "sourceLinkTemplate": "https://github.com/victusfate/ricochet/blob/main/{path}#L{line}",
   "includeVersion": true,
   "categorizeByGroup": true,
   "excludeInternal": true,

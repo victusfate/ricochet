@@ -1,8 +1,8 @@
-[**@victusfate/ricochet v1.7.1**](README.md)
+[**@victusfate/ricochet v1.10.0**](README.md)
 
 ***
 
-# @victusfate/ricochet v1.7.1
+# @victusfate/ricochet v1.10.0
 
 ## Interfaces
 
@@ -29,10 +29,12 @@
 ## Variables
 
 - [ACTION\_RATING](variables/ACTION_RATING.md)
+- [ACTIONS](variables/ACTIONS.md)
 - [ARTICLES\_GET\_MAX](variables/ARTICLES_GET_MAX.md)
 - [ARTICLES\_POST\_MAX](variables/ARTICLES_POST_MAX.md)
 - [DEFAULT\_MF\_PARAMS](variables/DEFAULT_MF_PARAMS.md)
 - [REC\_MAX\_CANDIDATES](variables/REC_MAX_CANDIDATES.md)
+- [TOPICS](variables/TOPICS.md)
 
 ## Functions
 
