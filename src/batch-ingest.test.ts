@@ -27,25 +27,35 @@ async function globalState(): Promise<{ mean: number; n: number }> {
 }
 
 describe('batch ingest — global_state equivalence', () => {
+  // Storage is isolated per test FILE, so both tests compute expectations from
+  // the observed starting state rather than assuming a fresh DO.
+
   it('a multi-event batch yields the exact sequential running mean and count', async () => {
+    const before = await globalState();
     await ingest([
       event('batchUserA00001', 'batchartA0000001', 'upvote'), // rating 1.0
       event('batchUserB00001', 'batchartB0000001', 'read'),   // rating 0.5
       event('batchUserC00001', 'batchartC0000001', 'save'),   // rating 2.0
     ]);
+    let mean = before.mean;
+    let n = before.n;
+    for (const rating of [1.0, 0.5, 2.0]) {
+      n += 1;
+      mean += (rating - mean) / n;
+    }
     const gs = await globalState();
-    // m1 = 1.0; m2 = 1.0 + (0.5-1.0)/2 = 0.75; m3 = 0.75 + (2.0-0.75)/3
-    expect(gs.n).toBe(3);
-    expect(gs.mean).toBeCloseTo(0.75 + (2.0 - 0.75) / 3, 12);
+    expect(gs.n).toBe(n);
+    expect(gs.mean).toBeCloseTo(mean, 12);
   });
 
   it('a duplicate inside one batch is learned only once', async () => {
+    const before = await globalState();
     await ingest([
       event('batchUserD00001', 'batchartD0000001', 'upvote'),
       event('batchUserD00001', 'batchartD0000001', 'upvote'), // dedup — no second update
     ]);
     const gs = await globalState();
-    expect(gs.n).toBe(1);
-    expect(gs.mean).toBeCloseTo(1.0, 12);
+    expect(gs.n).toBe(before.n + 1);
+    expect(gs.mean).toBeCloseTo(before.mean + (1.0 - before.mean) / (before.n + 1), 12);
   });
 });
