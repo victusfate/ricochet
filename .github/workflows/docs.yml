@@ -12,19 +12,24 @@ permissions:
   contents: write
 
 concurrency:
-  group: docs-${{ github.head_ref }}
+  # head_ref is empty on workflow_dispatch — fall back to ref_name so manual
+  # runs don't all share one unscoped group.
+  group: docs-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: true
 
 jobs:
   update-docs:
     runs-on: ubuntu-latest
+    # Fork PRs get a read-only token — skip instead of failing on push.
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.head_ref }}
+          # head_ref is empty on workflow_dispatch — fall back to the triggering ref.
+          ref: ${{ github.head_ref || github.ref_name }}
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: actions/setup-node@v4
