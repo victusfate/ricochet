@@ -23,12 +23,21 @@ const ALLOWED_ORIGINS = [
   'http://127.0.0.1:4173',
 ];
 
+// Memoized per isolate (env is constant for the isolate lifetime); keyed on the
+// raw value so tests with differing fake envs still resolve correctly.
+let extraOriginsCache: { raw: string | undefined; origins: string[] } | null = null;
+
 function extraOriginsFromEnv(env: RecWorkerEnv): string[] {
-  const raw = env.EXTRA_CORS_ORIGINS?.trim();
-  if (!raw) return [];
+  const raw = env.EXTRA_CORS_ORIGINS;
+  if (extraOriginsCache && extraOriginsCache.raw === raw) return extraOriginsCache.origins;
   // The env contract documents https:// only — enforce it so a misconfigured
   // http:// or garbage entry is never honored.
-  return raw.split(',').map(s => s.trim()).filter(s => s.startsWith('https://'));
+  const origins = (raw?.trim() ?? '')
+    .split(',')
+    .map(s => s.trim())
+    .filter(s => s.startsWith('https://'));
+  extraOriginsCache = { raw, origins };
+  return origins;
 }
 
 /** Exported for tests — origin allowlist check (defaults + EXTRA_CORS_ORIGINS + localhost). */

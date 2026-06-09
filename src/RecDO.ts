@@ -133,7 +133,14 @@ export class RecDO implements DurableObject {
         return badRequest('body must be an InteractionEvent[] array');
       }
       this.state.storage.transactionSync(() => {
-        for (const event of events as InteractionEvent[]) this.learnOne(event);
+        // Read global_state once per batch and write it once — per-event math is
+        // unchanged because the running mean is threaded through learnOne.
+        const gs = this.readGlobalState();
+        for (const event of events as InteractionEvent[]) this.learnOne(event, gs);
+        this.state.storage.sql.exec(
+          `UPDATE global_state SET mean = ?, n = ? WHERE id = 1`,
+          gs.mean, gs.n,
+        );
       });
       return new Response(null, { status: 204 });
     }
@@ -297,28 +304,34 @@ export class RecDO implements DurableObject {
 
   // ── S3: BiasedMF online learning ──────────────────────────────────────────
 
-  learnOne(event: InteractionEvent): void {
+  /** Reads the singleton global_state row. */
+  private readGlobalState(): { mean: number; n: number } {
+    type GsRow = { mean: number; n: number };
+    const [gs] = [...this.state.storage.sql.exec<GsRow>(
+      `SELECT mean, n FROM global_state WHERE id = 1`,
+    )];
+    return { mean: gs?.mean ?? 0, n: gs?.n ?? 0 };
+  }
+
+  /**
+   * Learns from one event, updating factor tables and the passed-in global
+   * state (mutated; the caller persists it once per batch).
+   */
+  learnOne(event: InteractionEvent, gs: { mean: number; n: number }): void {
     const rating = ACTION_RATING[event.action];
     if (rating === undefined) return;
 
     const now = Date.now();
 
-    // Dedup — only learn from each (user, article, action) triple once
-    type CntRow = { cnt: number };
-    const [dup] = [...this.state.storage.sql.exec<CntRow>(
-      `SELECT COUNT(*) AS cnt FROM interactions
-       WHERE user_id = ? AND article_id = ? AND action = ?`,
-      event.userId, event.articleId, event.action,
-    )];
-    if ((dup?.cnt ?? 0) > 0) {
-      // Use server-side `now` rather than event.ts — client-supplied timestamps
-      // could be set far in the future to bypass the 30-day prune retention window.
-      this.state.storage.sql.exec(
-        `UPDATE interactions SET ts = ? WHERE user_id = ? AND article_id = ? AND action = ?`,
-        now, event.userId, event.articleId, event.action,
-      );
-      return;
-    }
+    // Dedup — only learn from each (user, article, action) triple once.
+    // The UPDATE doubles as the existence check (rowsWritten > 0 means dup);
+    // it refreshes ts with server-side `now` rather than event.ts because
+    // client-supplied timestamps could bypass the 30-day prune window.
+    const dup = this.state.storage.sql.exec(
+      `UPDATE interactions SET ts = ? WHERE user_id = ? AND article_id = ? AND action = ?`,
+      now, event.userId, event.articleId, event.action,
+    );
+    if (dup.rowsWritten > 0) return;
 
     this.state.storage.sql.exec(
       `INSERT INTO interactions (user_id, article_id, source_id, action, topics, ts)
@@ -327,13 +340,6 @@ export class RecDO implements DurableObject {
       // Use server-side `now` to prevent timestamp spoofing that could bypass pruning.
       event.action, JSON.stringify(event.topics), now,
     );
-
-    type GsRow = { mean: number; n: number };
-    const [gs] = [...this.state.storage.sql.exec<GsRow>(
-      `SELECT mean, n FROM global_state WHERE id = 1`,
-    )];
-    const globalMean = gs?.mean ?? 0;
-    const n          = gs?.n   ?? 0;
 
     const [uDbRow] = [...this.state.storage.sql.exec<FactorsDbRow>(
       `SELECT bias,v0,v1,v2,v3,v4,v5,v6,v7,v8,v9
@@ -349,12 +355,9 @@ export class RecDO implements DurableObject {
     )];
     const iFactor = iDbRow ? dbRowToFactorRow(iDbRow) : newFactorRow(MF_PARAMS);
 
-    const res = mfLearnOne(MF_PARAMS, globalMean, n, uFactor, iFactor, rating);
-
-    this.state.storage.sql.exec(
-      `UPDATE global_state SET mean = ?, n = ? WHERE id = 1`,
-      res.globalMean, res.n,
-    );
+    const res = mfLearnOne(MF_PARAMS, gs.mean, gs.n, uFactor, iFactor, rating);
+    gs.mean = res.globalMean;
+    gs.n    = res.n;
 
     const uv = res.user.v;
     this.state.storage.sql.exec(
@@ -462,11 +465,7 @@ export class RecDO implements DurableObject {
     coldItemCount: number;
     warmItemCount: number;
   } {
-    type GsRow = { mean: number };
-    const [gs] = [...this.state.storage.sql.exec<GsRow>(
-      `SELECT mean FROM global_state WHERE id = 1`,
-    )];
-    const globalMean = gs?.mean ?? 0;
+    const globalMean = this.readGlobalState().mean;
 
     const [uDbRow] = [...this.state.storage.sql.exec<FactorsDbRow>(
       `SELECT bias,v0,v1,v2,v3,v4,v5,v6,v7,v8,v9
@@ -491,7 +490,13 @@ export class RecDO implements DurableObject {
        FROM item_factors WHERE article_id IN`,
       candidateIds,
     );
-    const itemById = new Map(itemRows.map(row => [row.article_id, row]));
+    // Pre-parse topics once per row — not inside the per-candidate loop.
+    // Fallback to primary topic for rows written before all_topics was added.
+    const itemById = new Map(itemRows.map(row => {
+      let topics = parseTopicsJson(row.all_topics);
+      if (topics.length === 0) topics = [row.topic];
+      return [row.article_id, { row, topics }] as const;
+    }));
     const coldItem = zeroFactorRow(MF_PARAMS);
 
     let excludedDownvotes = 0;
@@ -504,17 +509,14 @@ export class RecDO implements DurableObject {
         excludedDownvotes += 1;
         continue;
       }
-      const row = itemById.get(candidateId);
-      const baseScore = mfPredict(globalMean, uFactor, row ? dbRowToFactorRow(row) : coldItem);
+      const item = itemById.get(candidateId);
+      const baseScore = mfPredict(globalMean, uFactor, item ? dbRowToFactorRow(item.row) : coldItem);
       let weight = 1.0;
-      if (topicWeights && row) {
+      if (topicWeights && item) {
         // Check all stored topics so multi-topic articles match any weighted topic.
-        // Fallback to primary topic for rows written before all_topics was added.
-        let topics = parseTopicsJson(row.all_topics);
-        if (topics.length === 0) topics = [row.topic];
-        weight = topics.reduce((best, t) => Math.max(best, topicWeights[t] ?? 1.0), 1.0);
+        weight = item.topics.reduce((best, t) => Math.max(best, topicWeights[t] ?? 1.0), 1.0);
       }
-      if (row) {
+      if (item) {
         warmItemCount += 1;
       } else {
         coldItemCount += 1;
