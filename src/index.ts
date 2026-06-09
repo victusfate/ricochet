@@ -3,7 +3,7 @@ export { RecDO };
 export type { RecWorkerEnv } from './worker-env';
 import type { RecWorkerEnv } from './worker-env';
 import type { RecCacheStatus, RecCoreResponse, RecRankRequest, RecResponse } from './types';
-import { REC_MAX_CANDIDATES } from './types';
+import { REC_MAX_CANDIDATES, ARTICLES_GET_MAX, ARTICLES_POST_MAX } from './types';
 import { parseLimit, parseTopicWeights, parseCandidateArticleIds, parseCandidatesCsv } from './parsing';
 import { isValidEvent } from './validation';
 
@@ -434,6 +434,59 @@ export default {
       );
 
       return respondWithETag(response, request, env);
+    }
+
+    // GET /rec/articles?ids=<csv>  — up to ARTICLES_GET_MAX IDs
+    // POST /rec/articles           — up to ARTICLES_POST_MAX IDs in body
+    if (pathname === '/rec/articles') {
+      let ids: string[];
+
+      if (request.method === 'GET') {
+        const raw = url.searchParams.get('ids') ?? '';
+        ids = raw.split(',').map(s => s.trim()).filter(Boolean);
+        if (ids.length === 0) {
+          return json({ ok: false, message: 'ids query param is required' }, request, env, { status: 400 });
+        }
+        if (ids.length > ARTICLES_GET_MAX) {
+          return json(
+            { ok: false, message: `Too many ids; max ${ARTICLES_GET_MAX} for GET` },
+            request, env, { status: 400 },
+          );
+        }
+      } else if (request.method === 'POST') {
+        const bodyResult = await readBoundedBody(request, env);
+        if ('error' in bodyResult) return bodyResult.error;
+        let parsed: unknown;
+        try {
+          parsed = JSON.parse(bodyResult.text) as unknown;
+        } catch {
+          return json({ ok: false, message: 'Invalid JSON body' }, request, env, { status: 400 });
+        }
+        if (parsed === null || typeof parsed !== 'object' || !Array.isArray((parsed as Record<string, unknown>).ids)) {
+          return json({ ok: false, message: 'body must be { ids: string[] }' }, request, env, { status: 400 });
+        }
+        ids = ((parsed as Record<string, unknown>).ids as unknown[]).map(String);
+        if (ids.length === 0) {
+          return json({ articles: [] }, request, env);
+        }
+        if (ids.length > ARTICLES_POST_MAX) {
+          return json(
+            { ok: false, message: `Too many ids; max ${ARTICLES_POST_MAX} for POST` },
+            request, env, { status: 400 },
+          );
+        }
+      } else {
+        return new Response('Method Not Allowed', { status: 405, headers: corsHeaders(request, env) });
+      }
+
+      const stub = getRecDOStub(env);
+      const doRes = await stub.fetch(new Request('http://do-internal/articles', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids }),
+      }));
+      const articlesBody = await doRes.json();
+      return json(articlesBody, request, env);
     }
 
     return new Response('Not Found', { status: 404, headers: corsHeaders(request, env) });

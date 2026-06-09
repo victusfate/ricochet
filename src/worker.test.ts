@@ -1,7 +1,8 @@
 import { env, createExecutionContext, waitOnExecutionContext } from 'cloudflare:test';
 import { describe, it, expect } from 'vitest';
 import worker from './index';
-import type { InteractionEvent } from './types';
+import type { InteractionEvent, ArticleMetaRow } from './types';
+import { ARTICLES_GET_MAX, ARTICLES_POST_MAX } from './types';
 
 async function req(
   method: string,
@@ -456,5 +457,100 @@ describe('S6 — ETag caching for GET /recommendations/:userId', () => {
     // ETags may or may not differ depending on model state, but both should exist
     expect(resA.headers.get('ETag')).toBeTruthy();
     expect(resB.headers.get('ETag')).toBeTruthy();
+  });
+});
+
+// ── S7 — GET & POST /rec/articles ────────────────────────────────────────────
+
+describe('S7 — GET /rec/articles and POST /rec/articles', () => {
+  const articleUser = 'articles-test-user';
+  const knownId = 'articlesmeta00001';
+  const unknownId = 'articlesmeta99999';
+
+  async function seedArticle(articleId: string, sourceId: string, topics: InteractionEvent['topics']): Promise<void> {
+    await req('POST', '/interactions', {
+      events: [{ ...sampleEvent, userId: articleUser, articleId, sourceId, topics, action: 'read' }],
+    });
+  }
+
+  it('GET /rec/articles with known id returns article metadata', async () => {
+    await seedArticle(knownId, 'ars-technica', ['technology', 'science']);
+    const res = await req('GET', `/rec/articles?ids=${knownId}`);
+    expect(res.status).toBe(200);
+    const body = await res.json() as { articles: ArticleMetaRow[] };
+    expect(Array.isArray(body.articles)).toBe(true);
+    const found = body.articles.find(a => a.articleId === knownId);
+    expect(found).toBeDefined();
+    expect(found?.sourceId).toBe('ars-technica');
+    expect(found?.topics).toContain('technology');
+  });
+
+  it('GET /rec/articles with unknown id returns empty articles array', async () => {
+    const res = await req('GET', `/rec/articles?ids=${unknownId}`);
+    expect(res.status).toBe(200);
+    const body = await res.json() as { articles: ArticleMetaRow[] };
+    expect(body.articles).toHaveLength(0);
+  });
+
+  it(`GET /rec/articles rejects more than ${ARTICLES_GET_MAX} ids with 400`, async () => {
+    const ids = Array.from({ length: ARTICLES_GET_MAX + 1 }, (_, i) => `id${String(i).padStart(14, '0')}`).join(',');
+    const res = await req('GET', `/rec/articles?ids=${ids}`);
+    expect(res.status).toBe(400);
+    const body = await res.json() as { ok: boolean; message: string };
+    expect(body.ok).toBe(false);
+    expect(body.message).toContain('GET');
+  });
+
+  it('GET /rec/articles with missing ids param returns 400', async () => {
+    const res = await req('GET', '/rec/articles');
+    expect(res.status).toBe(400);
+  });
+
+  it('POST /rec/articles with known id returns article metadata', async () => {
+    await seedArticle(knownId, 'ars-technica', ['technology']);
+    const res = await req('POST', '/rec/articles', { ids: [knownId] });
+    expect(res.status).toBe(200);
+    const body = await res.json() as { articles: ArticleMetaRow[] };
+    expect(Array.isArray(body.articles)).toBe(true);
+    const found = body.articles.find(a => a.articleId === knownId);
+    expect(found).toBeDefined();
+    expect(found?.sourceId).toBe('ars-technica');
+  });
+
+  it('POST /rec/articles with empty ids returns empty articles array', async () => {
+    const res = await req('POST', '/rec/articles', { ids: [] });
+    expect(res.status).toBe(200);
+    const body = await res.json() as { articles: ArticleMetaRow[] };
+    expect(body.articles).toHaveLength(0);
+  });
+
+  it(`POST /rec/articles rejects more than ${ARTICLES_POST_MAX} ids with 400`, async () => {
+    const ids = Array.from({ length: ARTICLES_POST_MAX + 1 }, (_, i) => `id${String(i).padStart(14, '0')}`);
+    const res = await req('POST', '/rec/articles', { ids });
+    expect(res.status).toBe(400);
+    const body = await res.json() as { ok: boolean; message: string };
+    expect(body.ok).toBe(false);
+    expect(body.message).toContain('POST');
+  });
+
+  it('POST /rec/articles with missing ids field returns 400', async () => {
+    const res = await req('POST', '/rec/articles', { notIds: [] });
+    expect(res.status).toBe(400);
+  });
+
+  it('POST /rec/articles with invalid JSON body returns 400', async () => {
+    const headers = new Headers({
+      Origin: 'https://victusfate.github.io',
+      'Content-Type': 'application/json',
+    });
+    const request = new Request('http://localhost/rec/articles', {
+      method: 'POST',
+      headers,
+      body: 'not json',
+    });
+    const ctx = createExecutionContext();
+    const res = await worker.fetch(request, env, ctx);
+    await waitOnExecutionContext(ctx);
+    expect(res.status).toBe(400);
   });
 });

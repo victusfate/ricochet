@@ -1,4 +1,4 @@
-[**@victusfate/ricochet v1.6.0**](../README.md)
+[**@victusfate/ricochet v1.7.1**](../README.md)
 
 ***
 
@@ -6,7 +6,7 @@
 
 # Interface: RecCoreResponse
 
-Defined in: [types.ts:67](https://github.com/victusfate/ricochet/blob/6529db6ce6df22d258291217fe235fa0e8623954/src/types.ts#L67)
+Defined in: [types.ts:81](https://github.com/victusfate/ricochet/blob/05e1024558aa1ca4731aa49eeb4d4c7706ca9bcb/src/types.ts#L81)
 
 ## Extended by
 
@@ -18,7 +18,7 @@ Defined in: [types.ts:67](https://github.com/victusfate/ricochet/blob/6529db6ce6
 
 > **articleIds**: `string`[]
 
-Defined in: [types.ts:68](https://github.com/victusfate/ricochet/blob/6529db6ce6df22d258291217fe235fa0e8623954/src/types.ts#L68)
+Defined in: [types.ts:82](https://github.com/victusfate/ricochet/blob/05e1024558aa1ca4731aa49eeb4d4c7706ca9bcb/src/types.ts#L82)
 
 ***
 
@@ -26,7 +26,7 @@ Defined in: [types.ts:68](https://github.com/victusfate/ricochet/blob/6529db6ce6
 
 > **diagnostics**: [`RecDiagnostics`](RecDiagnostics.md)
 
-Defined in: [types.ts:71](https://github.com/victusfate/ricochet/blob/6529db6ce6df22d258291217fe235fa0e8623954/src/types.ts#L71)
+Defined in: [types.ts:85](https://github.com/victusfate/ricochet/blob/05e1024558aa1ca4731aa49eeb4d4c7706ca9bcb/src/types.ts#L85)
 
 ***
 
@@ -34,7 +34,7 @@ Defined in: [types.ts:71](https://github.com/victusfate/ricochet/blob/6529db6ce6
 
 > **generatedAt**: `number`
 
-Defined in: [types.ts:69](https://github.com/victusfate/ricochet/blob/6529db6ce6df22d258291217fe235fa0e8623954/src/types.ts#L69)
+Defined in: [types.ts:83](https://github.com/victusfate/ricochet/blob/05e1024558aa1ca4731aa49eeb4d4c7706ca9bcb/src/types.ts#L83)
 
 ***
 
@@ -42,4 +42,4 @@ Defined in: [types.ts:69](https://github.com/victusfate/ricochet/blob/6529db6ce6
 
 > **scoredArticleIds**: [`ScoredArticle`](ScoredArticle.md)[]
 
-Defined in: [types.ts:70](https://github.com/victusfate/ricochet/blob/6529db6ce6df22d258291217fe235fa0e8623954/src/types.ts#L70)
+Defined in: [types.ts:84](https://github.com/victusfate/ricochet/blob/05e1024558aa1ca4731aa49eeb4d4c7706ca9bcb/src/types.ts#L84)

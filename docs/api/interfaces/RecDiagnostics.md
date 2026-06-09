@@ -1,4 +1,4 @@
-[**@victusfate/ricochet v1.6.0**](../README.md)
+[**@victusfate/ricochet v1.7.1**](../README.md)
 
 ***
 
@@ -6,7 +6,7 @@
 
 # Interface: RecDiagnostics
 
-Defined in: [types.ts:51](https://github.com/victusfate/ricochet/blob/6529db6ce6df22d258291217fe235fa0e8623954/src/types.ts#L51)
+Defined in: [types.ts:65](https://github.com/victusfate/ricochet/blob/05e1024558aa1ca4731aa49eeb4d4c7706ca9bcb/src/types.ts#L65)
 
 ## Properties
 
@@ -14,7 +14,7 @@ Defined in: [types.ts:51](https://github.com/victusfate/ricochet/blob/6529db6ce6
 
 > **candidateCount**: `number`
 
-Defined in: [types.ts:57](https://github.com/victusfate/ricochet/blob/6529db6ce6df22d258291217fe235fa0e8623954/src/types.ts#L57)
+Defined in: [types.ts:71](https://github.com/victusfate/ricochet/blob/05e1024558aa1ca4731aa49eeb4d4c7706ca9bcb/src/types.ts#L71)
 
 ***
 
@@ -22,7 +22,7 @@ Defined in: [types.ts:57](https://github.com/victusfate/ricochet/blob/6529db6ce6
 
 > `optional` **candidateMode?**: `"feed-pool"` \| `"global"`
 
-Defined in: [types.ts:55](https://github.com/victusfate/ricochet/blob/6529db6ce6df22d258291217fe235fa0e8623954/src/types.ts#L55)
+Defined in: [types.ts:69](https://github.com/victusfate/ricochet/blob/05e1024558aa1ca4731aa49eeb4d4c7706ca9bcb/src/types.ts#L69)
 
 ***
 
@@ -30,7 +30,7 @@ Defined in: [types.ts:55](https://github.com/victusfate/ricochet/blob/6529db6ce6
 
 > `optional` **candidateStrategy?**: `"feed-pool"` \| `"diverse"` \| `"top-bias"`
 
-Defined in: [types.ts:56](https://github.com/victusfate/ricochet/blob/6529db6ce6df22d258291217fe235fa0e8623954/src/types.ts#L56)
+Defined in: [types.ts:70](https://github.com/victusfate/ricochet/blob/05e1024558aa1ca4731aa49eeb4d4c7706ca9bcb/src/types.ts#L70)
 
 ***
 
@@ -38,7 +38,7 @@ Defined in: [types.ts:56](https://github.com/victusfate/ricochet/blob/6529db6ce6
 
 > `optional` **coldItemCount?**: `number`
 
-Defined in: [types.ts:61](https://github.com/victusfate/ricochet/blob/6529db6ce6df22d258291217fe235fa0e8623954/src/types.ts#L61)
+Defined in: [types.ts:75](https://github.com/victusfate/ricochet/blob/05e1024558aa1ca4731aa49eeb4d4c7706ca9bcb/src/types.ts#L75)
 
 ***
 
@@ -46,7 +46,7 @@ Defined in: [types.ts:61](https://github.com/victusfate/ricochet/blob/6529db6ce6
 
 > **coldStart**: `boolean`
 
-Defined in: [types.ts:63](https://github.com/victusfate/ricochet/blob/6529db6ce6df22d258291217fe235fa0e8623954/src/types.ts#L63)
+Defined in: [types.ts:77](https://github.com/victusfate/ricochet/blob/05e1024558aa1ca4731aa49eeb4d4c7706ca9bcb/src/types.ts#L77)
 
 ***
 
@@ -54,7 +54,7 @@ Defined in: [types.ts:63](https://github.com/victusfate/ricochet/blob/6529db6ce6
 
 > **excludedDownvotes**: `number`
 
-Defined in: [types.ts:60](https://github.com/victusfate/ricochet/blob/6529db6ce6df22d258291217fe235fa0e8623954/src/types.ts#L60)
+Defined in: [types.ts:74](https://github.com/victusfate/ricochet/blob/05e1024558aa1ca4731aa49eeb4d4c7706ca9bcb/src/types.ts#L74)
 
 ***
 
@@ -62,7 +62,7 @@ Defined in: [types.ts:60](https://github.com/victusfate/ricochet/blob/6529db6ce6
 
 > **factorCount**: `number`
 
-Defined in: [types.ts:54](https://github.com/victusfate/ricochet/blob/6529db6ce6df22d258291217fe235fa0e8623954/src/types.ts#L54)
+Defined in: [types.ts:68](https://github.com/victusfate/ricochet/blob/05e1024558aa1ca4731aa49eeb4d4c7706ca9bcb/src/types.ts#L68)
 
 ***
 
@@ -70,7 +70,7 @@ Defined in: [types.ts:54](https://github.com/victusfate/ricochet/blob/6529db6ce6
 
 > **limit**: `number`
 
-Defined in: [types.ts:64](https://github.com/victusfate/ricochet/blob/6529db6ce6df22d258291217fe235fa0e8623954/src/types.ts#L64)
+Defined in: [types.ts:78](https://github.com/victusfate/ricochet/blob/05e1024558aa1ca4731aa49eeb4d4c7706ca9bcb/src/types.ts#L78)
 
 ***
 
@@ -78,7 +78,7 @@ Defined in: [types.ts:64](https://github.com/victusfate/ricochet/blob/6529db6ce6
 
 > **model**: `"biased-mf"`
 
-Defined in: [types.ts:52](https://github.com/victusfate/ricochet/blob/6529db6ce6df22d258291217fe235fa0e8623954/src/types.ts#L52)
+Defined in: [types.ts:66](https://github.com/victusfate/ricochet/blob/05e1024558aa1ca4731aa49eeb4d4c7706ca9bcb/src/types.ts#L66)
 
 ***
 
@@ -86,7 +86,7 @@ Defined in: [types.ts:52](https://github.com/victusfate/ricochet/blob/6529db6ce6
 
 > **modelVersion**: `string`
 
-Defined in: [types.ts:53](https://github.com/victusfate/ricochet/blob/6529db6ce6df22d258291217fe235fa0e8623954/src/types.ts#L53)
+Defined in: [types.ts:67](https://github.com/victusfate/ricochet/blob/05e1024558aa1ca4731aa49eeb4d4c7706ca9bcb/src/types.ts#L67)
 
 ***
 
@@ -94,7 +94,7 @@ Defined in: [types.ts:53](https://github.com/victusfate/ricochet/blob/6529db6ce6
 
 > **rankedCount**: `number`
 
-Defined in: [types.ts:58](https://github.com/victusfate/ricochet/blob/6529db6ce6df22d258291217fe235fa0e8623954/src/types.ts#L58)
+Defined in: [types.ts:72](https://github.com/victusfate/ricochet/blob/05e1024558aa1ca4731aa49eeb4d4c7706ca9bcb/src/types.ts#L72)
 
 ***
 
@@ -102,7 +102,7 @@ Defined in: [types.ts:58](https://github.com/victusfate/ricochet/blob/6529db6ce6
 
 > **returnedCount**: `number`
 
-Defined in: [types.ts:59](https://github.com/victusfate/ricochet/blob/6529db6ce6df22d258291217fe235fa0e8623954/src/types.ts#L59)
+Defined in: [types.ts:73](https://github.com/victusfate/ricochet/blob/05e1024558aa1ca4731aa49eeb4d4c7706ca9bcb/src/types.ts#L73)
 
 ***
 
@@ -110,4 +110,4 @@ Defined in: [types.ts:59](https://github.com/victusfate/ricochet/blob/6529db6ce6
 
 > `optional` **warmItemCount?**: `number`
 
-Defined in: [types.ts:62](https://github.com/victusfate/ricochet/blob/6529db6ce6df22d258291217fe235fa0e8623954/src/types.ts#L62)
+Defined in: [types.ts:76](https://github.com/victusfate/ricochet/blob/05e1024558aa1ca4731aa49eeb4d4c7706ca9bcb/src/types.ts#L76)
