@@ -8,7 +8,7 @@
 
 > **parseTopicWeights**(`value`): `object`
 
-Defined in: [parsing.ts:60](https://github.com/victusfate/ricochet/blob/2afee1925f887ec7721b493fa88dfe566672ea0d/src/parsing.ts#L60)
+Defined in: [parsing.ts:60](https://github.com/victusfate/ricochet/blob/8c2544f7a1f673598da09998b239fdb633f1790f/src/parsing.ts#L60)
 
 Parses and validates a topic-weights map from an untrusted source.
 Keys are topic names; values are non-negative multipliers capped at 10×.

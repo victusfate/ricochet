@@ -8,7 +8,7 @@
 
 > **mfLearnOne**(`params`, `globalMean`, `n`, `user`, `item`, `rating`): `object`
 
-Defined in: [scoring.ts:115](https://github.com/victusfate/ricochet/blob/2afee1925f887ec7721b493fa88dfe566672ea0d/src/scoring.ts#L115)
+Defined in: [scoring.ts:115](https://github.com/victusfate/ricochet/blob/8c2544f7a1f673598da09998b239fdb633f1790f/src/scoring.ts#L115)
 
 Performs one online SGD step of Biased Matrix Factorization.
 

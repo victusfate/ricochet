@@ -8,4 +8,4 @@
 
 > **Action** = *typeof* [`ACTIONS`](../variables/ACTIONS.md)\[`number`\]
 
-Defined in: [types.ts:18](https://github.com/victusfate/ricochet/blob/2afee1925f887ec7721b493fa88dfe566672ea0d/src/types.ts#L18)
+Defined in: [types.ts:18](https://github.com/victusfate/ricochet/blob/8c2544f7a1f673598da09998b239fdb633f1790f/src/types.ts#L18)
