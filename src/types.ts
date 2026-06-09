@@ -1,17 +1,21 @@
-// Topic taxonomy — exactly 9 values, matching boomerang rss-worker
-export type Topic =
-  | 'technology'
-  | 'science'
-  | 'world'
-  | 'business'
-  | 'health'
-  | 'environment'
-  | 'sports'
-  | 'entertainment'
-  | 'general';
+// Topic taxonomy — exactly 9 values, matching boomerang rss-worker.
+// Single canonical source: the union type and runtime validation both derive from this array.
+export const TOPICS = [
+  'technology',
+  'science',
+  'world',
+  'business',
+  'health',
+  'environment',
+  'sports',
+  'entertainment',
+  'general',
+] as const;
+export type Topic = typeof TOPICS[number];
 
-// Interaction actions
-export type Action = 'read' | 'upvote' | 'downvote' | 'save' | 'seen';
+// Interaction actions — single canonical source for the union, VALID_ACTIONS, and ACTION_RATING keys.
+export const ACTIONS = ['read', 'upvote', 'downvote', 'save', 'seen'] as const;
+export type Action = typeof ACTIONS[number];
 
 /**
  * A single user–article interaction event sent to POST /interactions.

@@ -1,6 +1,8 @@
 import type { InteractionEvent } from './types';
+import { ACTIONS, TOPICS } from './types';
 
-const VALID_ACTIONS = new Set(['read', 'upvote', 'downvote', 'save', 'seen']);
+const VALID_ACTIONS = new Set<string>(ACTIONS);
+const VALID_TOPICS  = new Set<string>(TOPICS);
 
 // Field length caps prevent KV key overflow (512-byte limit) and unbounded SQLite growth.
 const MAX_ID_LENGTH    = 256;
@@ -14,7 +16,9 @@ const MAX_TOPICS       = 10;
  * sending them to `POST /interactions`.
  *
  * Validates: non-empty `userId`/`articleId`/`sourceId` within length limits,
- * 1–10 non-empty topic strings, a recognised `action`, and a positive finite `ts`.
+ * 1–10 taxonomy topics, a recognised `action`, and a positive finite `ts`.
+ * Off-taxonomy topics are rejected — fabricated topics would otherwise pollute
+ * the diversity-bucketed cold-start candidate pool.
  */
 export function isValidEvent(e: unknown): e is InteractionEvent {
   if (typeof e !== 'object' || e === null) return false;
@@ -24,7 +28,7 @@ export function isValidEvent(e: unknown): e is InteractionEvent {
     typeof ev.articleId === 'string' && ev.articleId.length > 0 && ev.articleId.length <= MAX_ID_LENGTH &&
     typeof ev.sourceId  === 'string' && ev.sourceId.length  > 0 && ev.sourceId.length  <= MAX_SOURCE_LENGTH &&
     Array.isArray(ev.topics) && ev.topics.length > 0 && ev.topics.length <= MAX_TOPICS &&
-    (ev.topics as unknown[]).every(t => typeof t === 'string' && (t as string).length > 0) &&
+    (ev.topics as unknown[]).every(t => typeof t === 'string' && VALID_TOPICS.has(t)) &&
     typeof ev.action === 'string' && VALID_ACTIONS.has(ev.action) &&
     typeof ev.ts === 'number' && Number.isFinite(ev.ts) && ev.ts > 0
   );

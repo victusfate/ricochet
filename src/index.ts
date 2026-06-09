@@ -2,7 +2,7 @@ import { RecDO } from './RecDO';
 export { RecDO };
 export type { RecWorkerEnv } from './worker-env';
 import type { RecWorkerEnv } from './worker-env';
-import type { RecCacheStatus, RecCoreResponse, RecRankRequest, RecResponse } from './types';
+import type { ArticlesResponse, RecCacheStatus, RecCoreResponse, RecRankRequest, RecResponse } from './types';
 import { ARTICLES_GET_MAX, ARTICLES_POST_MAX } from './types';
 import { parseRankRequest } from './parsing';
 import { isValidEvent } from './validation';
@@ -417,7 +417,7 @@ async function handleArticles(request: Request, env: RecWorkerEnv, url: URL): Pr
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ids }),
   }));
-  const articlesBody = await doRes.json();
+  const articlesBody = await doRes.json() as ArticlesResponse;
   return json(articlesBody, request, env);
 }
 
