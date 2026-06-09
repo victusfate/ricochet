@@ -1,4 +1,4 @@
-[**@victusfate/ricochet v1.7.1**](../README.md)
+[**@victusfate/ricochet v1.10.0**](../README.md)
 
 ***
 
@@ -6,7 +6,7 @@
 
 # Interface: RecResponse
 
-Defined in: [types.ts:109](https://github.com/victusfate/ricochet/blob/05e1024558aa1ca4731aa49eeb4d4c7706ca9bcb/src/types.ts#L109)
+Defined in: [types.ts:113](https://github.com/victusfate/ricochet/blob/31ed1ed9d6ed446c934601082ec6497875386ea1/src/types.ts#L113)
 
 ## Extends
 
@@ -18,7 +18,7 @@ Defined in: [types.ts:109](https://github.com/victusfate/ricochet/blob/05e102455
 
 > **articleIds**: `string`[]
 
-Defined in: [types.ts:82](https://github.com/victusfate/ricochet/blob/05e1024558aa1ca4731aa49eeb4d4c7706ca9bcb/src/types.ts#L82)
+Defined in: [types.ts:86](https://github.com/victusfate/ricochet/blob/31ed1ed9d6ed446c934601082ec6497875386ea1/src/types.ts#L86)
 
 #### Inherited from
 
@@ -30,7 +30,7 @@ Defined in: [types.ts:82](https://github.com/victusfate/ricochet/blob/05e1024558
 
 > **cache**: [`RecCacheInfo`](RecCacheInfo.md)
 
-Defined in: [types.ts:111](https://github.com/victusfate/ricochet/blob/05e1024558aa1ca4731aa49eeb4d4c7706ca9bcb/src/types.ts#L111)
+Defined in: [types.ts:115](https://github.com/victusfate/ricochet/blob/31ed1ed9d6ed446c934601082ec6497875386ea1/src/types.ts#L115)
 
 ***
 
@@ -38,7 +38,7 @@ Defined in: [types.ts:111](https://github.com/victusfate/ricochet/blob/05e102455
 
 > **diagnostics**: [`RecDiagnostics`](RecDiagnostics.md)
 
-Defined in: [types.ts:85](https://github.com/victusfate/ricochet/blob/05e1024558aa1ca4731aa49eeb4d4c7706ca9bcb/src/types.ts#L85)
+Defined in: [types.ts:89](https://github.com/victusfate/ricochet/blob/31ed1ed9d6ed446c934601082ec6497875386ea1/src/types.ts#L89)
 
 #### Inherited from
 
@@ -50,7 +50,7 @@ Defined in: [types.ts:85](https://github.com/victusfate/ricochet/blob/05e1024558
 
 > **generatedAt**: `number`
 
-Defined in: [types.ts:83](https://github.com/victusfate/ricochet/blob/05e1024558aa1ca4731aa49eeb4d4c7706ca9bcb/src/types.ts#L83)
+Defined in: [types.ts:87](https://github.com/victusfate/ricochet/blob/31ed1ed9d6ed446c934601082ec6497875386ea1/src/types.ts#L87)
 
 #### Inherited from
 
@@ -62,7 +62,7 @@ Defined in: [types.ts:83](https://github.com/victusfate/ricochet/blob/05e1024558
 
 > **scoredArticleIds**: [`ScoredArticle`](ScoredArticle.md)[]
 
-Defined in: [types.ts:84](https://github.com/victusfate/ricochet/blob/05e1024558aa1ca4731aa49eeb4d4c7706ca9bcb/src/types.ts#L84)
+Defined in: [types.ts:88](https://github.com/victusfate/ricochet/blob/31ed1ed9d6ed446c934601082ec6497875386ea1/src/types.ts#L88)
 
 #### Inherited from
 
@@ -74,7 +74,7 @@ Defined in: [types.ts:84](https://github.com/victusfate/ricochet/blob/05e1024558
 
 > **timingMs**: [`RecTimingMs`](RecTimingMs.md)
 
-Defined in: [types.ts:112](https://github.com/victusfate/ricochet/blob/05e1024558aa1ca4731aa49eeb4d4c7706ca9bcb/src/types.ts#L112)
+Defined in: [types.ts:116](https://github.com/victusfate/ricochet/blob/31ed1ed9d6ed446c934601082ec6497875386ea1/src/types.ts#L116)
 
 ***
 
@@ -82,4 +82,4 @@ Defined in: [types.ts:112](https://github.com/victusfate/ricochet/blob/05e102455
 
 > **trace**: [`RecTraceInfo`](RecTraceInfo.md)
 
-Defined in: [types.ts:110](https://github.com/victusfate/ricochet/blob/05e1024558aa1ca4731aa49eeb4d4c7706ca9bcb/src/types.ts#L110)
+Defined in: [types.ts:114](https://github.com/victusfate/ricochet/blob/31ed1ed9d6ed446c934601082ec6497875386ea1/src/types.ts#L114)

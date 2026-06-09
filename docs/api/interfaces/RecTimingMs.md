@@ -1,4 +1,4 @@
-[**@victusfate/ricochet v1.7.1**](../README.md)
+[**@victusfate/ricochet v1.10.0**](../README.md)
 
 ***
 
@@ -6,7 +6,7 @@
 
 # Interface: RecTimingMs
 
-Defined in: [types.ts:102](https://github.com/victusfate/ricochet/blob/05e1024558aa1ca4731aa49eeb4d4c7706ca9bcb/src/types.ts#L102)
+Defined in: [types.ts:106](https://github.com/victusfate/ricochet/blob/31ed1ed9d6ed446c934601082ec6497875386ea1/src/types.ts#L106)
 
 ## Properties
 
@@ -14,7 +14,7 @@ Defined in: [types.ts:102](https://github.com/victusfate/ricochet/blob/05e102455
 
 > **cacheLookup**: `number`
 
-Defined in: [types.ts:104](https://github.com/victusfate/ricochet/blob/05e1024558aa1ca4731aa49eeb4d4c7706ca9bcb/src/types.ts#L104)
+Defined in: [types.ts:108](https://github.com/victusfate/ricochet/blob/31ed1ed9d6ed446c934601082ec6497875386ea1/src/types.ts#L108)
 
 ***
 
@@ -22,7 +22,7 @@ Defined in: [types.ts:104](https://github.com/victusfate/ricochet/blob/05e102455
 
 > **cacheWrite**: `number`
 
-Defined in: [types.ts:106](https://github.com/victusfate/ricochet/blob/05e1024558aa1ca4731aa49eeb4d4c7706ca9bcb/src/types.ts#L106)
+Defined in: [types.ts:110](https://github.com/victusfate/ricochet/blob/31ed1ed9d6ed446c934601082ec6497875386ea1/src/types.ts#L110)
 
 ***
 
@@ -30,7 +30,7 @@ Defined in: [types.ts:106](https://github.com/victusfate/ricochet/blob/05e102455
 
 > **doFetch**: `number`
 
-Defined in: [types.ts:105](https://github.com/victusfate/ricochet/blob/05e1024558aa1ca4731aa49eeb4d4c7706ca9bcb/src/types.ts#L105)
+Defined in: [types.ts:109](https://github.com/victusfate/ricochet/blob/31ed1ed9d6ed446c934601082ec6497875386ea1/src/types.ts#L109)
 
 ***
 
@@ -38,4 +38,4 @@ Defined in: [types.ts:105](https://github.com/victusfate/ricochet/blob/05e102455
 
 > **total**: `number`
 
-Defined in: [types.ts:103](https://github.com/victusfate/ricochet/blob/05e1024558aa1ca4731aa49eeb4d4c7706ca9bcb/src/types.ts#L103)
+Defined in: [types.ts:107](https://github.com/victusfate/ricochet/blob/31ed1ed9d6ed446c934601082ec6497875386ea1/src/types.ts#L107)
