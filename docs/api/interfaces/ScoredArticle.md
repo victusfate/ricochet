@@ -1,4 +1,4 @@
-[**@victusfate/ricochet v1.6.0**](../README.md)
+[**@victusfate/ricochet v1.7.1**](../README.md)
 
 ***
 
@@ -6,7 +6,7 @@
 
 # Interface: ScoredArticle
 
-Defined in: [types.ts:39](https://github.com/victusfate/ricochet/blob/6529db6ce6df22d258291217fe235fa0e8623954/src/types.ts#L39)
+Defined in: [types.ts:53](https://github.com/victusfate/ricochet/blob/05e1024558aa1ca4731aa49eeb4d4c7706ca9bcb/src/types.ts#L53)
 
 Response from GET /recommendations/:userId.
 Backward-compatible contract:
@@ -19,7 +19,7 @@ Backward-compatible contract:
 
 > **articleId**: `string`
 
-Defined in: [types.ts:40](https://github.com/victusfate/ricochet/blob/6529db6ce6df22d258291217fe235fa0e8623954/src/types.ts#L40)
+Defined in: [types.ts:54](https://github.com/victusfate/ricochet/blob/05e1024558aa1ca4731aa49eeb4d4c7706ca9bcb/src/types.ts#L54)
 
 ***
 
@@ -27,4 +27,4 @@ Defined in: [types.ts:40](https://github.com/victusfate/ricochet/blob/6529db6ce6
 
 > **score**: `number`
 
-Defined in: [types.ts:41](https://github.com/victusfate/ricochet/blob/6529db6ce6df22d258291217fe235fa0e8623954/src/types.ts#L41)
+Defined in: [types.ts:55](https://github.com/victusfate/ricochet/blob/05e1024558aa1ca4731aa49eeb4d4c7706ca9bcb/src/types.ts#L55)

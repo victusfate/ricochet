@@ -1,4 +1,4 @@
-[**@victusfate/ricochet v1.6.0**](../README.md)
+[**@victusfate/ricochet v1.7.1**](../README.md)
 
 ***
 
@@ -6,7 +6,7 @@
 
 # Interface: RecCacheInfo
 
-Defined in: [types.ts:81](https://github.com/victusfate/ricochet/blob/6529db6ce6df22d258291217fe235fa0e8623954/src/types.ts#L81)
+Defined in: [types.ts:95](https://github.com/victusfate/ricochet/blob/05e1024558aa1ca4731aa49eeb4d4c7706ca9bcb/src/types.ts#L95)
 
 ## Properties
 
@@ -14,7 +14,7 @@ Defined in: [types.ts:81](https://github.com/victusfate/ricochet/blob/6529db6ce6
 
 > **ageSec**: `number`
 
-Defined in: [types.ts:85](https://github.com/victusfate/ricochet/blob/6529db6ce6df22d258291217fe235fa0e8623954/src/types.ts#L85)
+Defined in: [types.ts:99](https://github.com/victusfate/ricochet/blob/05e1024558aa1ca4731aa49eeb4d4c7706ca9bcb/src/types.ts#L99)
 
 ***
 
@@ -22,7 +22,7 @@ Defined in: [types.ts:85](https://github.com/victusfate/ricochet/blob/6529db6ce6
 
 > **key**: `string`
 
-Defined in: [types.ts:83](https://github.com/victusfate/ricochet/blob/6529db6ce6df22d258291217fe235fa0e8623954/src/types.ts#L83)
+Defined in: [types.ts:97](https://github.com/victusfate/ricochet/blob/05e1024558aa1ca4731aa49eeb4d4c7706ca9bcb/src/types.ts#L97)
 
 ***
 
@@ -30,7 +30,7 @@ Defined in: [types.ts:83](https://github.com/victusfate/ricochet/blob/6529db6ce6
 
 > **status**: [`RecCacheStatus`](../type-aliases/RecCacheStatus.md)
 
-Defined in: [types.ts:82](https://github.com/victusfate/ricochet/blob/6529db6ce6df22d258291217fe235fa0e8623954/src/types.ts#L82)
+Defined in: [types.ts:96](https://github.com/victusfate/ricochet/blob/05e1024558aa1ca4731aa49eeb4d4c7706ca9bcb/src/types.ts#L96)
 
 ***
 
@@ -38,4 +38,4 @@ Defined in: [types.ts:82](https://github.com/victusfate/ricochet/blob/6529db6ce6
 
 > **ttlSec**: `number`
 
-Defined in: [types.ts:84](https://github.com/victusfate/ricochet/blob/6529db6ce6df22d258291217fe235fa0e8623954/src/types.ts#L84)
+Defined in: [types.ts:98](https://github.com/victusfate/ricochet/blob/05e1024558aa1ca4731aa49eeb4d4c7706ca9bcb/src/types.ts#L98)

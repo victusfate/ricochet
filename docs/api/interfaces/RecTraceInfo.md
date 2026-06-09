@@ -1,4 +1,4 @@
-[**@victusfate/ricochet v1.6.0**](../README.md)
+[**@victusfate/ricochet v1.7.1**](../README.md)
 
 ***
 
@@ -6,7 +6,7 @@
 
 # Interface: RecTraceInfo
 
-Defined in: [types.ts:74](https://github.com/victusfate/ricochet/blob/6529db6ce6df22d258291217fe235fa0e8623954/src/types.ts#L74)
+Defined in: [types.ts:88](https://github.com/victusfate/ricochet/blob/05e1024558aa1ca4731aa49eeb4d4c7706ca9bcb/src/types.ts#L88)
 
 ## Properties
 
@@ -14,7 +14,7 @@ Defined in: [types.ts:74](https://github.com/victusfate/ricochet/blob/6529db6ce6
 
 > `optional` **cfRay?**: `string`
 
-Defined in: [types.ts:76](https://github.com/victusfate/ricochet/blob/6529db6ce6df22d258291217fe235fa0e8623954/src/types.ts#L76)
+Defined in: [types.ts:90](https://github.com/victusfate/ricochet/blob/05e1024558aa1ca4731aa49eeb4d4c7706ca9bcb/src/types.ts#L90)
 
 ***
 
@@ -22,4 +22,4 @@ Defined in: [types.ts:76](https://github.com/victusfate/ricochet/blob/6529db6ce6
 
 > **requestId**: `string`
 
-Defined in: [types.ts:75](https://github.com/victusfate/ricochet/blob/6529db6ce6df22d258291217fe235fa0e8623954/src/types.ts#L75)
+Defined in: [types.ts:89](https://github.com/victusfate/ricochet/blob/05e1024558aa1ca4731aa49eeb4d4c7706ca9bcb/src/types.ts#L89)
