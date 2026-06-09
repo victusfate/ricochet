@@ -1,7 +1,13 @@
 name: Update API docs
 
+# Runs on main only. On PRs the bot's push becomes the PR head, and pushes made
+# with GITHUB_TOKEN never trigger workflows — so a required CI check on that
+# head can never report, permanently blocking the merge. Regenerating after
+# merge avoids the whole class of bot-push races.
 on:
-  pull_request:
+  push:
+    branches:
+      - main
     paths:
       - 'src/**'
       - 'typedoc.json'
@@ -12,24 +18,19 @@ permissions:
   contents: write
 
 concurrency:
-  # head_ref is empty on workflow_dispatch — fall back to ref_name so manual
-  # runs don't all share one unscoped group.
-  group: docs-${{ github.head_ref || github.ref_name }}
+  group: docs-${{ github.ref_name }}
   cancel-in-progress: true
 
 jobs:
   update-docs:
     runs-on: ubuntu-latest
-    # Fork PRs get a read-only token — skip instead of failing on push.
-    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
     steps:
       - uses: actions/checkout@v4
         with:
-          # head_ref is empty on workflow_dispatch — fall back to the triggering ref.
-          ref: ${{ github.head_ref || github.ref_name }}
+          ref: ${{ github.ref_name }}
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: actions/setup-node@v4
@@ -49,7 +50,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add docs/api
           git diff --cached --quiet || git commit -m "docs(api): regenerate TypeDoc Markdown"
-          # The version-bump workflow may push to this branch concurrently —
-          # rebase onto the remote before pushing to avoid a non-fast-forward reject.
-          git pull --rebase origin "${GITHUB_HEAD_REF:-$GITHUB_REF_NAME}"
+          # Another workflow may push to main concurrently — rebase before
+          # pushing to avoid a non-fast-forward reject.
+          git pull --rebase origin "$GITHUB_REF_NAME"
           git push

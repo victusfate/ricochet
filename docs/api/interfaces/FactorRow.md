@@ -6,7 +6,7 @@
 
 # Interface: FactorRow
 
-Defined in: [scoring.ts:49](https://github.com/victusfate/ricochet/blob/0b88aec714064b34a28b372d79232e5415e4417d/src/scoring.ts#L49)
+Defined in: [scoring.ts:49](https://github.com/victusfate/ricochet/blob/main/src/scoring.ts#L49)
 
 ## Properties
 
@@ -14,7 +14,7 @@ Defined in: [scoring.ts:49](https://github.com/victusfate/ricochet/blob/0b88aec7
 
 > **bias**: `number`
 
-Defined in: [scoring.ts:50](https://github.com/victusfate/ricochet/blob/0b88aec714064b34a28b372d79232e5415e4417d/src/scoring.ts#L50)
+Defined in: [scoring.ts:50](https://github.com/victusfate/ricochet/blob/main/src/scoring.ts#L50)
 
 ***
 
@@ -22,4 +22,4 @@ Defined in: [scoring.ts:50](https://github.com/victusfate/ricochet/blob/0b88aec7
 
 > **v**: `number`[]
 
-Defined in: [scoring.ts:51](https://github.com/victusfate/ricochet/blob/0b88aec714064b34a28b372d79232e5415e4417d/src/scoring.ts#L51)
+Defined in: [scoring.ts:51](https://github.com/victusfate/ricochet/blob/main/src/scoring.ts#L51)
