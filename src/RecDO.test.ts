@@ -1,6 +1,7 @@
 import { SELF, env } from 'cloudflare:test';
 import { describe, it, expect } from 'vitest';
 import type { InteractionEvent, RecCoreResponse, RecResponse } from './types';
+import { buildRecCacheKey } from './index';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -292,7 +293,7 @@ describe('S4 — prune old interactions', () => {
     expect(pruneRes.status).toBe(204);
 
     // Clear KV cache so getRecs reflects post-prune DO state
-    await env.REC_STORE.delete(`recs:${userId}:limit:50`);
+    await env.REC_STORE.delete(await buildRecCacheKey(userId, 50));
 
     // Article should be gone from recs (item_factors row removed too)
     const after = await getRecs(userId);

@@ -123,9 +123,17 @@ export class RecDO implements DurableObject {
     const url = new URL(request.url);
 
     if (url.pathname === '/ingest' && request.method === 'POST') {
-      const events = await request.json() as InteractionEvent[];
+      let events: unknown;
+      try {
+        events = await request.json();
+      } catch {
+        return badRequest('Invalid JSON body');
+      }
+      if (!Array.isArray(events)) {
+        return badRequest('body must be an InteractionEvent[] array');
+      }
       this.state.storage.transactionSync(() => {
-        for (const event of events) this.learnOne(event);
+        for (const event of events as InteractionEvent[]) this.learnOne(event);
       });
       return new Response(null, { status: 204 });
     }
@@ -173,7 +181,12 @@ export class RecDO implements DurableObject {
   }
 
   private async handleRecs(request: Request, url: URL, rawUserId: string): Promise<Response> {
-    const userId = decodeURIComponent(rawUserId);
+    let userId: string;
+    try {
+      userId = decodeURIComponent(rawUserId);
+    } catch {
+      return badRequest('Invalid userId encoding');
+    }
     let reqBody: unknown = null;
     if (request.method === 'POST') {
       try {
@@ -240,7 +253,16 @@ export class RecDO implements DurableObject {
   }
 
   private async handleArticles(request: Request): Promise<Response> {
-    const { ids } = await request.json() as { ids: string[] };
+    let parsed: unknown;
+    try {
+      parsed = await request.json();
+    } catch {
+      return badRequest('Invalid JSON body');
+    }
+    if (parsed === null || typeof parsed !== 'object' || !Array.isArray((parsed as { ids?: unknown }).ids)) {
+      return badRequest('body must be { ids: string[] }');
+    }
+    const ids = ((parsed as { ids: unknown[] }).ids).map(String);
     type MetaRow = { article_id: string; source_id: string; all_topics: string };
     const rows = this.selectByIdsChunked<MetaRow>(
       `SELECT article_id, source_id, all_topics FROM item_factors WHERE article_id IN`,
@@ -513,8 +535,9 @@ export class RecDO implements DurableObject {
   /**
    * Removes stale data on two independent schedules:
    * - interactions: pruned after 30 days (high-volume, drives model freshness)
-   * - item_factors: pruned after 180 days based on updated_at (retains learned item
-   *   quality for seasonal / long-tail articles even after interaction rows age out)
+   * - item_factors and user_factors: pruned after 180 days based on updated_at
+   *   (retains learned quality for seasonal / long-tail articles and returning
+   *   users even after interaction rows age out)
    *
    * Decoupling the two cutoffs means an article quiet for 31 days keeps its learned
    * bias until 180 days have elapsed, avoiding cold-restart quality regression.
@@ -527,6 +550,12 @@ export class RecDO implements DurableObject {
     // Guard updated_at > 0 prevents accidental deletion of rows with the schema default value.
     this.state.storage.sql.exec(
       `DELETE FROM item_factors WHERE updated_at < ? AND updated_at > 0`,
+      factorCutoff,
+    );
+    // user_factors shares the factor retention window — without this, anonymous
+    // client-minted userIds grow the table without bound.
+    this.state.storage.sql.exec(
+      `DELETE FROM user_factors WHERE updated_at < ? AND updated_at > 0`,
       factorCutoff,
     );
   }

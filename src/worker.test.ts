@@ -344,7 +344,7 @@ describe('S5 — KV cache for /recommendations/:userId', () => {
     });
     const poolBody = await poolRes.json() as { cache: { key: string; status: string } };
     expect(poolBody.cache.status).toBe('miss');
-    expect(poolBody.cache.key).toMatch(/^recs:kv-pool-key-user:pool:/);
+    expect(poolBody.cache.key).toMatch(/^recs:u:[0-9a-f]{24}:pool:/);
     expect(poolBody.cache.key).not.toBe(globalBody.cache.key);
   });
 });

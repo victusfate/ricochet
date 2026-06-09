@@ -26,10 +26,13 @@ const ALLOWED_ORIGINS = [
 function extraOriginsFromEnv(env: RecWorkerEnv): string[] {
   const raw = env.EXTRA_CORS_ORIGINS?.trim();
   if (!raw) return [];
-  return raw.split(',').map(s => s.trim()).filter(Boolean);
+  // The env contract documents https:// only — enforce it so a misconfigured
+  // http:// or garbage entry is never honored.
+  return raw.split(',').map(s => s.trim()).filter(s => s.startsWith('https://'));
 }
 
-function isAllowedOrigin(origin: string, env: RecWorkerEnv): boolean {
+/** Exported for tests — origin allowlist check (defaults + EXTRA_CORS_ORIGINS + localhost). */
+export function isAllowedOrigin(origin: string, env: RecWorkerEnv): boolean {
   if (!origin) return false;
   if (ALLOWED_ORIGINS.includes(origin)) return true;
   if (extraOriginsFromEnv(env).includes(origin)) return true;
@@ -162,6 +165,8 @@ function checkRateLimit(
 }
 
 const MAX_BATCH_SIZE = 200;
+// Matches the per-event ID cap in validation.ts.
+const MAX_USER_ID_LENGTH = 256;
 // 50 KB is generous for 200 interaction events; reject oversized bodies early
 // before JSON.parse() allocates memory for the full payload.
 const MAX_BODY_BYTES = 50_000;
@@ -189,14 +194,21 @@ async function hashCandidateArticleIds(candidateArticleIds: string[]): Promise<s
   return sha256HexPrefix([...candidateArticleIds].sort().join(','), 12);
 }
 
-async function buildRecCacheKey(
+/**
+ * Builds the KV cache key for a recommendations response. The userId segment
+ * is hashed: a raw userId could embed `:pool:`/`:limit:` separators and forge
+ * a collision with another user's key (cache poisoning), and arbitrary-length
+ * userIds could exceed the 512-byte KV key limit. Exported for tests.
+ */
+export async function buildRecCacheKey(
   userId: string,
   limit: number,
   candidateArticleIds?: string[],
 ): Promise<string> {
-  if (!candidateArticleIds) return `recs:${userId}:limit:${limit}`;
+  const uid = await sha256HexPrefix(userId, 12);
+  if (!candidateArticleIds) return `recs:u:${uid}:limit:${limit}`;
   const poolHash = await hashCandidateArticleIds(candidateArticleIds);
-  return `recs:${userId}:pool:${poolHash}:limit:${limit}`;
+  return `recs:u:${uid}:pool:${poolHash}:limit:${limit}`;
 }
 
 function withObservability(
@@ -251,11 +263,15 @@ async function handleInteractions(request: Request, env: RecWorkerEnv): Promise<
   }
 
   const stub = getRecDOStub(env);
-  await stub.fetch(new Request('http://do-internal/ingest', {
+  const doRes = await stub.fetch(new Request('http://do-internal/ingest', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(valid),
   }));
+  if (!doRes.ok) {
+    // Never claim success when events were dropped.
+    return badRequest(request, env, 'Failed to ingest interactions', 502);
+  }
 
   return json({ ok: true, queued: valid.length }, request, env);
 }
@@ -271,6 +287,11 @@ async function handleRecommendations(
   const requestStartedAt = Date.now();
   const limited = checkRateLimit(request, 'recs', RATE_LIMIT_RECS_MAX);
   if (limited.limited) return tooManyRequests(request, env, limited.retryAfterSeconds);
+
+  // Same cap as /interactions IDs — bounds DO work and keeps KV keys sane.
+  if (userId.length === 0 || userId.length > MAX_USER_ID_LENGTH) {
+    return badRequest(request, env, 'userId must be 1-256 characters');
+  }
 
   let body: RecRankRequest | null = null;
   if (request.method === 'POST') {
@@ -382,6 +403,9 @@ async function handleRecommendations(
 // GET /rec/articles?ids=<csv>  — up to ARTICLES_GET_MAX IDs
 // POST /rec/articles           — up to ARTICLES_POST_MAX IDs in body
 async function handleArticles(request: Request, env: RecWorkerEnv, url: URL): Promise<Response> {
+  const limited = checkRateLimit(request, 'articles', RATE_LIMIT_RECS_MAX);
+  if (limited.limited) return tooManyRequests(request, env, limited.retryAfterSeconds);
+
   let ids: string[];
 
   if (request.method === 'GET') {
@@ -417,6 +441,10 @@ async function handleArticles(request: Request, env: RecWorkerEnv, url: URL): Pr
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ids }),
   }));
+  if (!doRes.ok) {
+    const errorText = await doRes.text();
+    return badRequest(request, env, errorText || 'Failed to fetch articles', doRes.status);
+  }
   const articlesBody = await doRes.json() as ArticlesResponse;
   return json(articlesBody, request, env);
 }
