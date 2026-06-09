@@ -69,6 +69,11 @@ function json(
   return new Response(JSON.stringify(data), { ...init, headers });
 }
 
+/** Canonical error response: `{ ok: false, message }` with CORS headers. */
+function badRequest(request: Request, env: RecWorkerEnv, message: string, status = 400): Response {
+  return json({ ok: false, message }, request, env, { status });
+}
+
 function tooManyRequests(request: Request, env: RecWorkerEnv, retryAfterSeconds: number): Response {
   const headers = corsHeaders(request, env);
   headers.set('Retry-After', String(retryAfterSeconds));
@@ -79,24 +84,29 @@ function tooManyRequests(request: Request, env: RecWorkerEnv, retryAfterSeconds:
   );
 }
 
-async function readBoundedBody(
+/** Reads a size-bounded request body and parses it as JSON, producing the error response on failure. */
+async function readBoundedJson(
   request: Request,
   env: RecWorkerEnv,
-): Promise<{ text: string } | { error: Response }> {
+): Promise<{ value: unknown } | { error: Response }> {
   const contentLength = parseInt(request.headers.get('Content-Length') ?? '0', 10);
   if (contentLength > MAX_BODY_BYTES) {
-    return { error: json({ ok: false, message: 'Request body too large' }, request, env, { status: 413 }) };
+    return { error: badRequest(request, env, 'Request body too large', 413) };
   }
   let text: string;
   try {
     text = await request.text();
   } catch {
-    return { error: json({ ok: false, message: 'Invalid JSON body' }, request, env, { status: 400 }) };
+    return { error: badRequest(request, env, 'Invalid JSON body') };
   }
   if (text.length > MAX_BODY_BYTES) {
-    return { error: json({ ok: false, message: 'Request body too large' }, request, env, { status: 413 }) };
+    return { error: badRequest(request, env, 'Request body too large', 413) };
   }
-  return { text };
+  try {
+    return { value: JSON.parse(text) as unknown };
+  } catch {
+    return { error: badRequest(request, env, 'Invalid JSON body') };
+  }
 }
 
 async function respondWithETag(
@@ -163,23 +173,20 @@ function getRecDOStub(env: RecWorkerEnv): DurableObjectStub {
 }
 
 /** Computes a stable ETag from the ranked article ID list. */
-async function computeETag(articleIds: string[]): Promise<string> {
-  const payload = new TextEncoder().encode(articleIds.join(','));
-  const digest = await crypto.subtle.digest('SHA-256', payload);
-  const hex = Array.from(new Uint8Array(digest))
-    .slice(0, 16)
+async function sha256HexPrefix(text: string, nBytes: number): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+  return Array.from(new Uint8Array(digest))
+    .slice(0, nBytes)
     .map(b => b.toString(16).padStart(2, '0'))
     .join('');
-  return `"${hex}"`;
 }
 
+async function computeETag(articleIds: string[]): Promise<string> {
+  return `"${await sha256HexPrefix(articleIds.join(','), 16)}"`;
+}
 
 async function hashCandidateArticleIds(candidateArticleIds: string[]): Promise<string> {
-  const sorted = [...candidateArticleIds].sort();
-  const payload = new TextEncoder().encode(sorted.join(','));
-  const digest = await crypto.subtle.digest('SHA-256', payload);
-  const bytes = new Uint8Array(digest);
-  return Array.from(bytes).slice(0, 12).map(b => b.toString(16).padStart(2, '0')).join('');
+  return sha256HexPrefix([...candidateArticleIds].sort().join(','), 12);
 }
 
 async function buildRecCacheKey(
@@ -222,15 +229,9 @@ async function handleInteractions(request: Request, env: RecWorkerEnv): Promise<
   const limited = checkRateLimit(request, 'interactions', RATE_LIMIT_INTERACTIONS_MAX);
   if (limited.limited) return tooManyRequests(request, env, limited.retryAfterSeconds);
 
-  const bodyResult = await readBoundedBody(request, env);
+  const bodyResult = await readBoundedJson(request, env);
   if ('error' in bodyResult) return bodyResult.error;
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(bodyResult.text) as unknown;
-  } catch {
-    return json({ ok: false, message: 'Invalid JSON body' }, request, env, { status: 400 });
-  }
+  const parsed = bodyResult.value;
 
   // Accept both shapes: bare array or { events: [...] }
   const eventsRaw: unknown = Array.isArray(parsed) ? parsed
@@ -238,16 +239,10 @@ async function handleInteractions(request: Request, env: RecWorkerEnv): Promise<
       ? (parsed as Record<string, unknown>).events
       : undefined;
   if (!Array.isArray(eventsRaw)) {
-    return json(
-      { ok: false, message: 'body must be an InteractionEvent[] array or { events: InteractionEvent[] }' },
-      request, env, { status: 400 },
-    );
+    return badRequest(request, env, 'body must be an InteractionEvent[] array or { events: InteractionEvent[] }');
   }
   if (eventsRaw.length > MAX_BATCH_SIZE) {
-    return json(
-      { ok: false, message: `Batch too large; max ${MAX_BATCH_SIZE} events` },
-      request, env, { status: 400 },
-    );
+    return badRequest(request, env, `Batch too large; max ${MAX_BATCH_SIZE} events`);
   }
 
   const valid = eventsRaw.filter(isValidEvent);
@@ -279,19 +274,15 @@ async function handleRecommendations(
 
   let body: RecRankRequest | null = null;
   if (request.method === 'POST') {
-    const recsBodyResult = await readBoundedBody(request, env);
+    const recsBodyResult = await readBoundedJson(request, env);
     if ('error' in recsBodyResult) return recsBodyResult.error;
-    try {
-      body = JSON.parse(recsBodyResult.text) as RecRankRequest | null;
-    } catch {
-      return json({ ok: false, message: 'Invalid JSON body' }, request, env, { status: 400 });
-    }
+    body = recsBodyResult.value as RecRankRequest | null;
   }
   const parsed = request.method === 'GET'
     ? parseRankRequest({ method: 'GET', searchParams: url.searchParams })
     : parseRankRequest({ method: 'POST', searchParams: url.searchParams, body });
   if (!parsed.ok) {
-    return json({ ok: false, message: parsed.message }, request, env, { status: 400 });
+    return badRequest(request, env, parsed.message);
   }
   const { limit, candidateModeProvided, candidateArticleIds, topicWeights } = parsed.value;
 
@@ -397,35 +388,24 @@ async function handleArticles(request: Request, env: RecWorkerEnv, url: URL): Pr
     const raw = url.searchParams.get('ids') ?? '';
     ids = raw.split(',').map(s => s.trim()).filter(Boolean);
     if (ids.length === 0) {
-      return json({ ok: false, message: 'ids query param is required' }, request, env, { status: 400 });
+      return badRequest(request, env, 'ids query param is required');
     }
     if (ids.length > ARTICLES_GET_MAX) {
-      return json(
-        { ok: false, message: `Too many ids; max ${ARTICLES_GET_MAX} for GET` },
-        request, env, { status: 400 },
-      );
+      return badRequest(request, env, `Too many ids; max ${ARTICLES_GET_MAX} for GET`);
     }
   } else if (request.method === 'POST') {
-    const bodyResult = await readBoundedBody(request, env);
+    const bodyResult = await readBoundedJson(request, env);
     if ('error' in bodyResult) return bodyResult.error;
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(bodyResult.text) as unknown;
-    } catch {
-      return json({ ok: false, message: 'Invalid JSON body' }, request, env, { status: 400 });
-    }
+    const parsed = bodyResult.value;
     if (parsed === null || typeof parsed !== 'object' || !Array.isArray((parsed as Record<string, unknown>).ids)) {
-      return json({ ok: false, message: 'body must be { ids: string[] }' }, request, env, { status: 400 });
+      return badRequest(request, env, 'body must be { ids: string[] }');
     }
     ids = ((parsed as Record<string, unknown>).ids as unknown[]).map(String);
     if (ids.length === 0) {
       return json({ articles: [] }, request, env);
     }
     if (ids.length > ARTICLES_POST_MAX) {
-      return json(
-        { ok: false, message: `Too many ids; max ${ARTICLES_POST_MAX} for POST` },
-        request, env, { status: 400 },
-      );
+      return badRequest(request, env, `Too many ids; max ${ARTICLES_POST_MAX} for POST`);
     }
   } else {
     return new Response('Method Not Allowed', { status: 405, headers: corsHeaders(request, env) });

@@ -21,6 +21,19 @@ const GLOBAL_CANDIDATE_LIMIT = 200;
 const COLD_START_THRESHOLD = 30;
 const PER_TOPIC_DIVERSITY  = 10; // max articles per topic in cold-start pool
 
+// workerd Durable Object SQLite caps bound parameters at 100 (SQLITE_MAX_VARIABLE_NUMBER).
+const SQL_VAR_LIMIT = 100;
+
+/** Canonical error response: `{ ok: false, message }` (no CORS — DO is internal-only). */
+function badRequest(message: string): Response {
+  return Response.json({ ok: false, message }, { status: 400 });
+}
+
+/** Defensively decodes an `all_topics` JSON column; malformed or empty values yield []. */
+function parseTopicsJson(raw: string): string[] {
+  try { return JSON.parse(raw || '[]') as string[]; } catch { return []; }
+}
+
 // Debug count endpoints — fixed allowlist of table names (never user input).
 const DEBUG_COUNT_TABLES: Record<string, string> = {
   '/debug/user-factors-count': 'user_factors',
@@ -166,14 +179,14 @@ export class RecDO implements DurableObject {
       try {
         reqBody = await request.json();
       } catch {
-        return Response.json({ ok: false, message: 'Invalid JSON body' }, { status: 400 });
+        return badRequest('Invalid JSON body');
       }
     }
     const parsedReq = request.method === 'GET'
       ? parseRankRequest({ method: 'GET', searchParams: url.searchParams })
       : parseRankRequest({ method: 'POST', searchParams: url.searchParams, body: reqBody });
     if (!parsedReq.ok) {
-      return Response.json({ ok: false, message: parsedReq.message }, { status: 400 });
+      return badRequest(parsedReq.message);
     }
     const { candidateArticleIds: parsedCandidates, topicWeights } = parsedReq.value;
     let limit = parsedReq.value.limit;
@@ -228,23 +241,36 @@ export class RecDO implements DurableObject {
 
   private async handleArticles(request: Request): Promise<Response> {
     const { ids } = await request.json() as { ids: string[] };
-    const SQL_VAR_LIMIT = 100;
     type MetaRow = { article_id: string; source_id: string; all_topics: string };
-    const rows: MetaRow[] = [];
+    const rows = this.selectByIdsChunked<MetaRow>(
+      `SELECT article_id, source_id, all_topics FROM item_factors WHERE article_id IN`,
+      ids,
+    );
+    const articles = rows.map(r => ({
+      articleId: r.article_id,
+      sourceId: r.source_id,
+      topics: parseTopicsJson(r.all_topics),
+    }));
+    return Response.json({ articles });
+  }
+
+  /**
+   * Runs `sqlPrefix (?,?,...)` over `ids` in chunks of SQL_VAR_LIMIT so no
+   * statement exceeds workerd's bound-parameter cap.
+   */
+  private selectByIdsChunked<T extends Record<string, SqlStorageValue>>(
+    sqlPrefix: string,
+    ids: string[],
+  ): T[] {
+    const rows: T[] = [];
     for (let i = 0; i < ids.length; i += SQL_VAR_LIMIT) {
       const chunk = ids.slice(i, i + SQL_VAR_LIMIT);
-      rows.push(...this.state.storage.sql.exec<MetaRow>(
-        `SELECT article_id, source_id, all_topics FROM item_factors
-         WHERE article_id IN (${chunk.map(() => '?').join(',')})`,
+      rows.push(...this.state.storage.sql.exec<T>(
+        `${sqlPrefix} (${chunk.map(() => '?').join(',')})`,
         ...chunk,
       ));
     }
-    const articles = rows.map(r => {
-      let topics: string[] = [];
-      try { topics = JSON.parse(r.all_topics || '[]') as string[]; } catch { /* empty */ }
-      return { articleId: r.article_id, sourceId: r.source_id, topics };
-    });
-    return Response.json({ articles });
+    return rows;
   }
 
   // ── S3: BiasedMF online learning ──────────────────────────────────────────
@@ -437,19 +463,12 @@ export class RecDO implements DurableObject {
       )].map(r => r.article_id),
     );
 
-    // workerd Durable Object SQLite caps bound parameters at 100 (SQLITE_MAX_VARIABLE_NUMBER).
-    // Chunk the IN (...) lookup so no single statement exceeds the limit.
     type ItemRow = FactorsDbRow & { article_id: string; topic: string; all_topics: string };
-    const SQL_VAR_LIMIT = 100;
-    const itemRows: ItemRow[] = [];
-    for (let i = 0; i < candidateIds.length; i += SQL_VAR_LIMIT) {
-      const chunk = candidateIds.slice(i, i + SQL_VAR_LIMIT);
-      itemRows.push(...this.state.storage.sql.exec<ItemRow>(
-        `SELECT article_id,bias,v0,v1,v2,v3,v4,v5,v6,v7,v8,v9,topic,all_topics
-         FROM item_factors WHERE article_id IN (${chunk.map(() => '?').join(',')})`,
-        ...chunk,
-      ));
-    }
+    const itemRows = this.selectByIdsChunked<ItemRow>(
+      `SELECT article_id,bias,v0,v1,v2,v3,v4,v5,v6,v7,v8,v9,topic,all_topics
+       FROM item_factors WHERE article_id IN`,
+      candidateIds,
+    );
     const itemById = new Map(itemRows.map(row => [row.article_id, row]));
     const coldItem = zeroFactorRow(MF_PARAMS);
 
@@ -469,9 +488,8 @@ export class RecDO implements DurableObject {
       if (topicWeights && row) {
         // Check all stored topics so multi-topic articles match any weighted topic.
         // Fallback to primary topic for rows written before all_topics was added.
-        let topics: string[];
-        try { topics = JSON.parse(row.all_topics || '[]') as string[]; } catch { topics = []; }
-        if (topics.length === 0) topics.push(row.topic);
+        let topics = parseTopicsJson(row.all_topics);
+        if (topics.length === 0) topics = [row.topic];
         weight = topics.reduce((best, t) => Math.max(best, topicWeights[t] ?? 1.0), 1.0);
       }
       if (row) {
