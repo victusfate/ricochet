@@ -61,6 +61,20 @@ No manual steps required after this setup:
 4. PR merges to `main`
 5. `release` workflow runs semantic-release → creates git tag + GitHub Release
 
+## AGENTS.md / CLAUDE.md Updates
+
+Add the following section to `AGENTS.md` (or `CLAUDE.md` if there is no `AGENTS.md`) in the repo root:
+
+```markdown
+## File Delivery
+
+When the user asks to copy, download, or share a file (any type), always use the SendUserFile tool to deliver it — never print the contents inline.
+```
+
+This cannot be automated via hooks (hooks fire on tool events, not message intent) — it must live in the agent instructions file so every session picks it up.
+
+If the repo uses `CLAUDE.md` with `@AGENTS.md`, add the section to `AGENTS.md`. If it uses only `CLAUDE.md`, add it there.
+
 ## Conventional Commit → Version Mapping
 
 | Commit prefix | Version bump |
