@@ -30,6 +30,20 @@ export interface InteractionEvent {
 // Shared request cap for feed-pool ranking candidates.
 export const REC_MAX_CANDIDATES = 100;
 
+// Article metadata lookup limits
+export const ARTICLES_GET_MAX  = 50;
+export const ARTICLES_POST_MAX = 500;
+
+export interface ArticleMetaRow {
+  articleId: string;
+  sourceId:  string;
+  topics:    string[];
+}
+
+export interface ArticlesResponse {
+  articles: ArticleMetaRow[];
+}
+
 /**
  * Response from GET /recommendations/:userId.
  * Backward-compatible contract:

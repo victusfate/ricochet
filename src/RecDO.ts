@@ -204,6 +204,27 @@ export class RecDO implements DurableObject {
       );
     }
 
+    if (url.pathname === '/articles' && request.method === 'POST') {
+      const { ids } = await request.json() as { ids: string[] };
+      const SQL_VAR_LIMIT = 100;
+      type MetaRow = { article_id: string; source_id: string; all_topics: string };
+      const rows: MetaRow[] = [];
+      for (let i = 0; i < ids.length; i += SQL_VAR_LIMIT) {
+        const chunk = ids.slice(i, i + SQL_VAR_LIMIT);
+        rows.push(...this.state.storage.sql.exec<MetaRow>(
+          `SELECT article_id, source_id, all_topics FROM item_factors
+           WHERE article_id IN (${chunk.map(() => '?').join(',')})`,
+          ...chunk,
+        ));
+      }
+      const articles = rows.map(r => {
+        let topics: string[] = [];
+        try { topics = JSON.parse(r.all_topics || '[]') as string[]; } catch { /* empty */ }
+        return { articleId: r.article_id, sourceId: r.source_id, topics };
+      });
+      return Response.json({ articles });
+    }
+
     if (url.pathname === '/prune' && request.method === 'POST') {
       const interactionCutoffParam = url.searchParams.get('cutoff');
       const factorCutoffParam      = url.searchParams.get('factorCutoff');
