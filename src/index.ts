@@ -186,7 +186,6 @@ function getRecDOStub(env: RecWorkerEnv): DurableObjectStub {
   return env.REC_DO.get(id);
 }
 
-/** Computes a stable ETag from the ranked article ID list. */
 async function sha256HexPrefix(text: string, nBytes: number): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
   return Array.from(new Uint8Array(digest))
@@ -195,6 +194,7 @@ async function sha256HexPrefix(text: string, nBytes: number): Promise<string> {
     .join('');
 }
 
+/** Computes a stable ETag from the ranked article ID list. */
 async function computeETag(articleIds: string[]): Promise<string> {
   return `"${await sha256HexPrefix(articleIds.join(','), 16)}"`;
 }
@@ -375,12 +375,7 @@ async function handleRecommendations(
   }
   if (!doRes.ok) {
     const errorText = await doRes.text();
-    return json(
-      { ok: false, message: errorText || 'Failed to rank recommendations' },
-      request,
-      env,
-      { status: doRes.status },
-    );
+    return badRequest(request, env, errorText || 'Failed to rank recommendations', doRes.status);
   }
   const recBody = await doRes.json() as RecCoreResponse;
   const doFetchMs = Date.now() - doFetchStartedAt;
