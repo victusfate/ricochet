@@ -8,7 +8,7 @@
 
 > **zeroFactorRow**(`params`): [`FactorRow`](../interfaces/FactorRow.md)
 
-Defined in: [scoring.ts:76](https://github.com/victusfate/ricochet/blob/8c2544f7a1f673598da09998b239fdb633f1790f/src/scoring.ts#L76)
+Defined in: [scoring.ts:76](https://github.com/victusfate/ricochet/blob/0b88aec714064b34a28b372d79232e5415e4417d/src/scoring.ts#L76)
 
 Allocates a factor row of all zeros. Used for cold-start scoring:
 `mfPredict(globalMean, zeroUser, itemFactor)` reduces to `globalMean + item.bias`.

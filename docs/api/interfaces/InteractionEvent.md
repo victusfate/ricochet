@@ -6,7 +6,7 @@
 
 # Interface: InteractionEvent
 
-Defined in: [types.ts:25](https://github.com/victusfate/ricochet/blob/8c2544f7a1f673598da09998b239fdb633f1790f/src/types.ts#L25)
+Defined in: [types.ts:25](https://github.com/victusfate/ricochet/blob/0b88aec714064b34a28b372d79232e5415e4417d/src/types.ts#L25)
 
 A single user–article interaction event sent to POST /interactions.
 userId is an anonymous stable identifier (e.g. SHA-256 of IndexedDB deviceId).
@@ -18,7 +18,7 @@ articleId is the 16-hex SHA-256(url)[:8] ID from boomerang rss-worker.
 
 > **action**: `"read"` \| `"upvote"` \| `"downvote"` \| `"save"` \| `"seen"`
 
-Defined in: [types.ts:30](https://github.com/victusfate/ricochet/blob/8c2544f7a1f673598da09998b239fdb633f1790f/src/types.ts#L30)
+Defined in: [types.ts:30](https://github.com/victusfate/ricochet/blob/0b88aec714064b34a28b372d79232e5415e4417d/src/types.ts#L30)
 
 ***
 
@@ -26,7 +26,7 @@ Defined in: [types.ts:30](https://github.com/victusfate/ricochet/blob/8c2544f7a1
 
 > **articleId**: `string`
 
-Defined in: [types.ts:27](https://github.com/victusfate/ricochet/blob/8c2544f7a1f673598da09998b239fdb633f1790f/src/types.ts#L27)
+Defined in: [types.ts:27](https://github.com/victusfate/ricochet/blob/0b88aec714064b34a28b372d79232e5415e4417d/src/types.ts#L27)
 
 ***
 
@@ -34,7 +34,7 @@ Defined in: [types.ts:27](https://github.com/victusfate/ricochet/blob/8c2544f7a1
 
 > **sourceId**: `string`
 
-Defined in: [types.ts:28](https://github.com/victusfate/ricochet/blob/8c2544f7a1f673598da09998b239fdb633f1790f/src/types.ts#L28)
+Defined in: [types.ts:28](https://github.com/victusfate/ricochet/blob/0b88aec714064b34a28b372d79232e5415e4417d/src/types.ts#L28)
 
 ***
 
@@ -42,7 +42,7 @@ Defined in: [types.ts:28](https://github.com/victusfate/ricochet/blob/8c2544f7a1
 
 > **topics**: (`"technology"` \| `"science"` \| `"world"` \| `"business"` \| `"health"` \| `"environment"` \| `"sports"` \| `"entertainment"` \| `"general"`)[]
 
-Defined in: [types.ts:29](https://github.com/victusfate/ricochet/blob/8c2544f7a1f673598da09998b239fdb633f1790f/src/types.ts#L29)
+Defined in: [types.ts:29](https://github.com/victusfate/ricochet/blob/0b88aec714064b34a28b372d79232e5415e4417d/src/types.ts#L29)
 
 ***
 
@@ -50,7 +50,7 @@ Defined in: [types.ts:29](https://github.com/victusfate/ricochet/blob/8c2544f7a1
 
 > **ts**: `number`
 
-Defined in: [types.ts:31](https://github.com/victusfate/ricochet/blob/8c2544f7a1f673598da09998b239fdb633f1790f/src/types.ts#L31)
+Defined in: [types.ts:31](https://github.com/victusfate/ricochet/blob/0b88aec714064b34a28b372d79232e5415e4417d/src/types.ts#L31)
 
 ***
 
@@ -58,4 +58,4 @@ Defined in: [types.ts:31](https://github.com/victusfate/ricochet/blob/8c2544f7a1
 
 > **userId**: `string`
 
-Defined in: [types.ts:26](https://github.com/victusfate/ricochet/blob/8c2544f7a1f673598da09998b239fdb633f1790f/src/types.ts#L26)
+Defined in: [types.ts:26](https://github.com/victusfate/ricochet/blob/0b88aec714064b34a28b372d79232e5415e4417d/src/types.ts#L26)

@@ -6,7 +6,7 @@
 
 # Interface: RecTimingMs
 
-Defined in: [types.ts:106](https://github.com/victusfate/ricochet/blob/8c2544f7a1f673598da09998b239fdb633f1790f/src/types.ts#L106)
+Defined in: [types.ts:106](https://github.com/victusfate/ricochet/blob/0b88aec714064b34a28b372d79232e5415e4417d/src/types.ts#L106)
 
 ## Properties
 
@@ -14,7 +14,7 @@ Defined in: [types.ts:106](https://github.com/victusfate/ricochet/blob/8c2544f7a
 
 > **cacheLookup**: `number`
 
-Defined in: [types.ts:108](https://github.com/victusfate/ricochet/blob/8c2544f7a1f673598da09998b239fdb633f1790f/src/types.ts#L108)
+Defined in: [types.ts:108](https://github.com/victusfate/ricochet/blob/0b88aec714064b34a28b372d79232e5415e4417d/src/types.ts#L108)
 
 ***
 
@@ -22,7 +22,7 @@ Defined in: [types.ts:108](https://github.com/victusfate/ricochet/blob/8c2544f7a
 
 > **cacheWrite**: `number`
 
-Defined in: [types.ts:110](https://github.com/victusfate/ricochet/blob/8c2544f7a1f673598da09998b239fdb633f1790f/src/types.ts#L110)
+Defined in: [types.ts:110](https://github.com/victusfate/ricochet/blob/0b88aec714064b34a28b372d79232e5415e4417d/src/types.ts#L110)
 
 ***
 
@@ -30,7 +30,7 @@ Defined in: [types.ts:110](https://github.com/victusfate/ricochet/blob/8c2544f7a
 
 > **doFetch**: `number`
 
-Defined in: [types.ts:109](https://github.com/victusfate/ricochet/blob/8c2544f7a1f673598da09998b239fdb633f1790f/src/types.ts#L109)
+Defined in: [types.ts:109](https://github.com/victusfate/ricochet/blob/0b88aec714064b34a28b372d79232e5415e4417d/src/types.ts#L109)
 
 ***
 
@@ -38,4 +38,4 @@ Defined in: [types.ts:109](https://github.com/victusfate/ricochet/blob/8c2544f7a
 
 > **total**: `number`
 
-Defined in: [types.ts:107](https://github.com/victusfate/ricochet/blob/8c2544f7a1f673598da09998b239fdb633f1790f/src/types.ts#L107)
+Defined in: [types.ts:107](https://github.com/victusfate/ricochet/blob/0b88aec714064b34a28b372d79232e5415e4417d/src/types.ts#L107)

@@ -6,7 +6,7 @@
 
 # Interface: RecCoreResponse
 
-Defined in: [types.ts:85](https://github.com/victusfate/ricochet/blob/8c2544f7a1f673598da09998b239fdb633f1790f/src/types.ts#L85)
+Defined in: [types.ts:85](https://github.com/victusfate/ricochet/blob/0b88aec714064b34a28b372d79232e5415e4417d/src/types.ts#L85)
 
 ## Extended by
 
@@ -18,7 +18,7 @@ Defined in: [types.ts:85](https://github.com/victusfate/ricochet/blob/8c2544f7a1
 
 > **articleIds**: `string`[]
 
-Defined in: [types.ts:86](https://github.com/victusfate/ricochet/blob/8c2544f7a1f673598da09998b239fdb633f1790f/src/types.ts#L86)
+Defined in: [types.ts:86](https://github.com/victusfate/ricochet/blob/0b88aec714064b34a28b372d79232e5415e4417d/src/types.ts#L86)
 
 ***
 
@@ -26,7 +26,7 @@ Defined in: [types.ts:86](https://github.com/victusfate/ricochet/blob/8c2544f7a1
 
 > **diagnostics**: [`RecDiagnostics`](RecDiagnostics.md)
 
-Defined in: [types.ts:89](https://github.com/victusfate/ricochet/blob/8c2544f7a1f673598da09998b239fdb633f1790f/src/types.ts#L89)
+Defined in: [types.ts:89](https://github.com/victusfate/ricochet/blob/0b88aec714064b34a28b372d79232e5415e4417d/src/types.ts#L89)
 
 ***
 
@@ -34,7 +34,7 @@ Defined in: [types.ts:89](https://github.com/victusfate/ricochet/blob/8c2544f7a1
 
 > **generatedAt**: `number`
 
-Defined in: [types.ts:87](https://github.com/victusfate/ricochet/blob/8c2544f7a1f673598da09998b239fdb633f1790f/src/types.ts#L87)
+Defined in: [types.ts:87](https://github.com/victusfate/ricochet/blob/0b88aec714064b34a28b372d79232e5415e4417d/src/types.ts#L87)
 
 ***
 
@@ -42,4 +42,4 @@ Defined in: [types.ts:87](https://github.com/victusfate/ricochet/blob/8c2544f7a1
 
 > **scoredArticleIds**: [`ScoredArticle`](ScoredArticle.md)[]
 
-Defined in: [types.ts:88](https://github.com/victusfate/ricochet/blob/8c2544f7a1f673598da09998b239fdb633f1790f/src/types.ts#L88)
+Defined in: [types.ts:88](https://github.com/victusfate/ricochet/blob/0b88aec714064b34a28b372d79232e5415e4417d/src/types.ts#L88)
