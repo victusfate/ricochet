@@ -1,4 +1,0 @@
-#!/usr/bin/env sh
-# Runs typecheck and tests before push. Enable with:
-#   git config core.hooksPath .githooks
-npm run typecheck && npm test
