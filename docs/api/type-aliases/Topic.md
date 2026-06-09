@@ -8,4 +8,4 @@
 
 > **Topic** = *typeof* [`TOPICS`](../variables/TOPICS.md)\[`number`\]
 
-Defined in: [types.ts:14](https://github.com/victusfate/ricochet/blob/31ed1ed9d6ed446c934601082ec6497875386ea1/src/types.ts#L14)
+Defined in: [types.ts:14](https://github.com/victusfate/ricochet/blob/59ce69b73244814ea60961ffa3aff25bf8fadcaf/src/types.ts#L14)

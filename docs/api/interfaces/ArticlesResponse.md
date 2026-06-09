@@ -6,7 +6,7 @@
 
 # Interface: ArticlesResponse
 
-Defined in: [types.ts:47](https://github.com/victusfate/ricochet/blob/31ed1ed9d6ed446c934601082ec6497875386ea1/src/types.ts#L47)
+Defined in: [types.ts:47](https://github.com/victusfate/ricochet/blob/59ce69b73244814ea60961ffa3aff25bf8fadcaf/src/types.ts#L47)
 
 ## Properties
 
@@ -14,4 +14,4 @@ Defined in: [types.ts:47](https://github.com/victusfate/ricochet/blob/31ed1ed9d6
 
 > **articles**: [`ArticleMetaRow`](ArticleMetaRow.md)[]
 
-Defined in: [types.ts:48](https://github.com/victusfate/ricochet/blob/31ed1ed9d6ed446c934601082ec6497875386ea1/src/types.ts#L48)
+Defined in: [types.ts:48](https://github.com/victusfate/ricochet/blob/59ce69b73244814ea60961ffa3aff25bf8fadcaf/src/types.ts#L48)

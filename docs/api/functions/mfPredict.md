@@ -8,7 +8,7 @@
 
 > **mfPredict**(`globalMean`, `user`, `item`): `number`
 
-Defined in: [scoring.ts:90](https://github.com/victusfate/ricochet/blob/31ed1ed9d6ed446c934601082ec6497875386ea1/src/scoring.ts#L90)
+Defined in: [scoring.ts:90](https://github.com/victusfate/ricochet/blob/59ce69b73244814ea60961ffa3aff25bf8fadcaf/src/scoring.ts#L90)
 
 Computes the BiasedMF predicted score for a (user, item) pair.
 

@@ -6,7 +6,7 @@
 
 # Interface: RecCacheInfo
 
-Defined in: [types.ts:99](https://github.com/victusfate/ricochet/blob/31ed1ed9d6ed446c934601082ec6497875386ea1/src/types.ts#L99)
+Defined in: [types.ts:99](https://github.com/victusfate/ricochet/blob/59ce69b73244814ea60961ffa3aff25bf8fadcaf/src/types.ts#L99)
 
 ## Properties
 
@@ -14,7 +14,7 @@ Defined in: [types.ts:99](https://github.com/victusfate/ricochet/blob/31ed1ed9d6
 
 > **ageSec**: `number`
 
-Defined in: [types.ts:103](https://github.com/victusfate/ricochet/blob/31ed1ed9d6ed446c934601082ec6497875386ea1/src/types.ts#L103)
+Defined in: [types.ts:103](https://github.com/victusfate/ricochet/blob/59ce69b73244814ea60961ffa3aff25bf8fadcaf/src/types.ts#L103)
 
 ***
 
@@ -22,7 +22,7 @@ Defined in: [types.ts:103](https://github.com/victusfate/ricochet/blob/31ed1ed9d
 
 > **key**: `string`
 
-Defined in: [types.ts:101](https://github.com/victusfate/ricochet/blob/31ed1ed9d6ed446c934601082ec6497875386ea1/src/types.ts#L101)
+Defined in: [types.ts:101](https://github.com/victusfate/ricochet/blob/59ce69b73244814ea60961ffa3aff25bf8fadcaf/src/types.ts#L101)
 
 ***
 
@@ -30,7 +30,7 @@ Defined in: [types.ts:101](https://github.com/victusfate/ricochet/blob/31ed1ed9d
 
 > **status**: [`RecCacheStatus`](../type-aliases/RecCacheStatus.md)
 
-Defined in: [types.ts:100](https://github.com/victusfate/ricochet/blob/31ed1ed9d6ed446c934601082ec6497875386ea1/src/types.ts#L100)
+Defined in: [types.ts:100](https://github.com/victusfate/ricochet/blob/59ce69b73244814ea60961ffa3aff25bf8fadcaf/src/types.ts#L100)
 
 ***
 
@@ -38,4 +38,4 @@ Defined in: [types.ts:100](https://github.com/victusfate/ricochet/blob/31ed1ed9d
 
 > **ttlSec**: `number`
 
-Defined in: [types.ts:102](https://github.com/victusfate/ricochet/blob/31ed1ed9d6ed446c934601082ec6497875386ea1/src/types.ts#L102)
+Defined in: [types.ts:102](https://github.com/victusfate/ricochet/blob/59ce69b73244814ea60961ffa3aff25bf8fadcaf/src/types.ts#L102)
