@@ -92,4 +92,7 @@ jobs:
           # a CI run or required status checks will stall (or merge untested).
           # The chore(release): last-commit guard above breaks the re-trigger loop.
           git commit -m "chore(release): bump version to $NEXT"
+          # The docs workflow may push to this branch concurrently — rebase onto
+          # the remote before pushing to avoid a non-fast-forward reject.
+          git pull --rebase origin "$GITHUB_HEAD_REF"
           git push
