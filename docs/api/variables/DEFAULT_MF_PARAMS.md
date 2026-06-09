@@ -8,7 +8,7 @@
 
 > `const` **DEFAULT\_MF\_PARAMS**: [`MfParams`](../interfaces/MfParams.md)
 
-Defined in: [scoring.ts:39](https://github.com/victusfate/ricochet/blob/59ce69b73244814ea60961ffa3aff25bf8fadcaf/src/scoring.ts#L39)
+Defined in: [scoring.ts:39](https://github.com/victusfate/ricochet/blob/2afee1925f887ec7721b493fa88dfe566672ea0d/src/scoring.ts#L39)
 
 Production-tuned defaults. Override individual fields with the spread operator:
 `{ ...DEFAULT_MF_PARAMS, nFactors: 20 }`.

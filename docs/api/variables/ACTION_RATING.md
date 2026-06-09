@@ -8,7 +8,7 @@
 
 > `const` **ACTION\_RATING**: `Record`\<[`Action`](../type-aliases/Action.md), `number`\>
 
-Defined in: [scoring.ts:9](https://github.com/victusfate/ricochet/blob/59ce69b73244814ea60961ffa3aff25bf8fadcaf/src/scoring.ts#L9)
+Defined in: [scoring.ts:9](https://github.com/victusfate/ricochet/blob/2afee1925f887ec7721b493fa88dfe566672ea0d/src/scoring.ts#L9)
 
 Maps each interaction action to a numeric training signal.
 Use these values when building your own rating matrix outside the Worker.

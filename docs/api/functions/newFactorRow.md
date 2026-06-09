@@ -8,7 +8,7 @@
 
 > **newFactorRow**(`params`): [`FactorRow`](../interfaces/FactorRow.md)
 
-Defined in: [scoring.ts:65](https://github.com/victusfate/ricochet/blob/59ce69b73244814ea60961ffa3aff25bf8fadcaf/src/scoring.ts#L65)
+Defined in: [scoring.ts:65](https://github.com/victusfate/ricochet/blob/2afee1925f887ec7721b493fa88dfe566672ea0d/src/scoring.ts#L65)
 
 Allocates a new factor row with bias 0 and latent vector initialised from
 N(0, `params.sigmaInit`). Use for a freshly seen user or item.
