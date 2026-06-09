@@ -3,8 +3,8 @@ export { RecDO };
 export type { RecWorkerEnv } from './worker-env';
 import type { RecWorkerEnv } from './worker-env';
 import type { RecCacheStatus, RecCoreResponse, RecRankRequest, RecResponse } from './types';
-import { REC_MAX_CANDIDATES, ARTICLES_GET_MAX, ARTICLES_POST_MAX } from './types';
-import { parseLimit, parseTopicWeights, parseCandidateArticleIds, parseCandidatesCsv } from './parsing';
+import { ARTICLES_GET_MAX, ARTICLES_POST_MAX } from './types';
+import { parseRankRequest } from './parsing';
 import { isValidEvent } from './validation';
 
 const RATE_LIMIT_INTERACTIONS_MAX = 60;
@@ -293,55 +293,23 @@ export default {
       if (limited.limited) return tooManyRequests(request, env, limited.retryAfterSeconds);
 
       const userId = recsMatch[1];
-      let limit = parseLimit(url.searchParams.get('limit'));
-      let candidateArticleIds: string[] | undefined;
-      let candidateModeProvided = false;
-      let topicWeights: Record<string, number> | undefined;
-
-      if (request.method === 'GET') {
-        candidateModeProvided = url.searchParams.has('candidates');
-        candidateArticleIds = parseCandidatesCsv(url.searchParams.get('candidates'));
-      } else {
+      let body: RecRankRequest | null = null;
+      if (request.method === 'POST') {
         const recsBodyResult = await readBoundedBody(request, env);
         if ('error' in recsBodyResult) return recsBodyResult.error;
-        let body: RecRankRequest | null;
         try {
           body = JSON.parse(recsBodyResult.text) as RecRankRequest | null;
         } catch {
           return json({ ok: false, message: 'Invalid JSON body' }, request, env, { status: 400 });
         }
-        if (body !== null && typeof body !== 'object') {
-          return json(
-            { ok: false, message: 'Invalid JSON body' },
-            request,
-            env,
-            { status: 400 },
-          );
-        }
-        candidateModeProvided = body !== null && Object.prototype.hasOwnProperty.call(body, 'candidateArticleIds');
-        const parsed = parseCandidateArticleIds(body?.candidateArticleIds);
-        if (parsed.message) {
-          return json({ ok: false, message: parsed.message }, request, env, { status: 400 });
-        }
-        candidateArticleIds = parsed.ids;
-        if (body?.limit !== undefined) limit = parseLimit(body.limit);
-        if (body?.topicWeights !== undefined) {
-          const parsedTw = parseTopicWeights(body.topicWeights);
-          if (parsedTw.message) {
-            return json({ ok: false, message: parsedTw.message }, request, env, { status: 400 });
-          }
-          topicWeights = parsedTw.weights;
-        }
       }
-
-      if (candidateArticleIds && candidateArticleIds.length > REC_MAX_CANDIDATES) {
-        return json(
-          { ok: false, message: `Too many candidateArticleIds in request; max ${REC_MAX_CANDIDATES}` },
-          request,
-          env,
-          { status: 400 },
-        );
+      const parsed = request.method === 'GET'
+        ? parseRankRequest({ method: 'GET', searchParams: url.searchParams })
+        : parseRankRequest({ method: 'POST', searchParams: url.searchParams, body });
+      if (!parsed.ok) {
+        return json({ ok: false, message: parsed.message }, request, env, { status: 400 });
       }
+      const { limit, candidateModeProvided, candidateArticleIds, topicWeights } = parsed.value;
 
       // Bypass cache when topicWeights are provided — results are personalized per user preference
       const skipCache = !!topicWeights && Object.keys(topicWeights).length > 0;

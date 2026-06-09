@@ -1,14 +1,13 @@
 import type {
-  InteractionEvent, RecCoreResponse, RecRankRequest, RecDiagnostics, ScoredArticle,
+  InteractionEvent, RecCoreResponse, RecDiagnostics, ScoredArticle,
 } from './types';
-import { REC_MAX_CANDIDATES } from './types';
 import type { RecWorkerEnv } from './worker-env';
 import {
   ACTION_RATING, DEFAULT_MF_PARAMS, newFactorRow, zeroFactorRow,
   mfLearnOne, mfPredict,
 } from './scoring';
 import type { FactorRow } from './scoring';
-import { parseLimit, parseTopicWeights, parseCandidateArticleIds, parseCandidatesCsv } from './parsing';
+import { parseRankRequest } from './parsing';
 
 const INTERACTION_RETENTION_MS = 30  * 24 * 60 * 60 * 1000; // 30 days
 const FACTOR_RETENTION_MS      = 180 * 24 * 60 * 60 * 1000; // 180 days — decoupled from interactions
@@ -114,43 +113,22 @@ export class RecDO implements DurableObject {
     const recsMatch = url.pathname.match(/^\/recs\/(.+)$/);
     if (recsMatch && (request.method === 'GET' || request.method === 'POST')) {
       const userId = decodeURIComponent(recsMatch[1]);
-      let limit = parseLimit(url.searchParams.get('limit'));
-      let parsedCandidates: string[] | undefined;
-      let topicWeights: Record<string, number> | undefined;
-
-      if (request.method === 'GET') {
-        parsedCandidates = parseCandidatesCsv(url.searchParams.get('candidates'));
-      } else {
-        let body: RecRankRequest | null;
+      let reqBody: unknown = null;
+      if (request.method === 'POST') {
         try {
-          body = await request.json() as RecRankRequest | null;
+          reqBody = await request.json();
         } catch {
           return Response.json({ ok: false, message: 'Invalid JSON body' }, { status: 400 });
         }
-        if (body !== null && typeof body !== 'object') {
-          return Response.json({ ok: false, message: 'Invalid JSON body' }, { status: 400 });
-        }
-        const parsed = parseCandidateArticleIds(body?.candidateArticleIds);
-        if (parsed.message) {
-          return Response.json({ ok: false, message: parsed.message }, { status: 400 });
-        }
-        parsedCandidates = parsed.ids;
-        if (body?.limit !== undefined) limit = parseLimit(body.limit);
-        if (body?.topicWeights !== undefined) {
-          const parsedTw = parseTopicWeights(body.topicWeights);
-          if (parsedTw.message) {
-            return Response.json({ ok: false, message: parsedTw.message }, { status: 400 });
-          }
-          topicWeights = parsedTw.weights;
-        }
       }
-
-      if (parsedCandidates && parsedCandidates.length > REC_MAX_CANDIDATES) {
-        return Response.json(
-          { ok: false, message: `Too many candidateArticleIds in request; max ${REC_MAX_CANDIDATES}` },
-          { status: 400 },
-        );
+      const parsedReq = request.method === 'GET'
+        ? parseRankRequest({ method: 'GET', searchParams: url.searchParams })
+        : parseRankRequest({ method: 'POST', searchParams: url.searchParams, body: reqBody });
+      if (!parsedReq.ok) {
+        return Response.json({ ok: false, message: parsedReq.message }, { status: 400 });
       }
+      const { candidateArticleIds: parsedCandidates, topicWeights } = parsedReq.value;
+      let limit = parsedReq.value.limit;
 
       const candidateMode: RecDiagnostics['candidateMode'] = parsedCandidates ? 'feed-pool' : 'global';
       // Clamp limit to the effective pool ceiling for each mode so returnedCount
