@@ -17,6 +17,8 @@ codebase — `[review]` correctness (max effort), `[quality]` structural quality
 | parse result | Discriminated union `{ ok: true, value } \| { ok: false, message }` returned by parsers |
 | error response | The canonical `{ ok: false, message }` JSON body with 4xx status |
 | action vocabulary | The set of valid interaction actions (`view`, `click`, …) — single canonical source |
+| fix class | A cohesive group of findings addressed by one decision (D1–D7) and implemented as one TDD slice group |
+| cold-start pool | The per-topic top-N popular articles the DO recommends to users with no factor history |
 
 ## Findings
 
@@ -99,7 +101,9 @@ behavior-preserving; no route or response changes.
 
 **D3 — Shared low-level helpers (F-20–F-25, F-37).**
 One `selectByIdsChunked` in the DO; one `parseTopicsJson`; `errorJson` /
-`badRequest` response helpers per layer; `readBoundedJson` folding body read +
+`badRequest` response helpers per layer (two helpers, not one shared: the
+Worker variant must attach CORS headers, the DO variant must not);
+`readBoundedJson` folding body read +
 parse + 400; `sha256HexPrefix`; replace the hand-rolled `Response` with
 `Response.json`.
 
@@ -112,7 +116,7 @@ already maintained. Add a compile-or-init-time assertion that
 `DEFAULT_MF_PARAMS.nFactors` matches the `v0..v9` schema width. Type the
 `/rec/articles` response with `ArticlesResponse`.
 
-**D5 — Input hardening & response checks (F-01–F-08, F-10, F-11).**
+**D5 — Input hardening, response checks & storage growth (F-01–F-08, F-10, F-11).**
 Validate `userId` (length ≤ 256, same cap as `/interactions` IDs) before KV
 key construction; build cache keys with a collision-proof encoding (hash or
 length-prefixed segments) (F-05, F-06). Wrap DO body parsing in validation
@@ -139,8 +143,9 @@ concurrency/ref correctly for `workflow_dispatch`.
 **Deferred (no action this pass).**
 F-12 (global mean decay) — behavior may be intended; revisit with product
 input. F-16 (placeholder KV id) — deploy-time configuration, documented in
-README; not a code defect. F-38 — fold the `stale` cache status distinction
-into D2's handler extraction only if free; otherwise defer.
+README; not a code defect. F-38 (cache-status `stale` distinction and
+empty-string sentinel) — deferred; the `RecCacheStatus` vocabulary change is
+a client-visible contract change and needs product input.
 
 ## Scope
 
