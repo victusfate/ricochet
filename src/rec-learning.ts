@@ -51,7 +51,9 @@ export function learnOne(
   )];
   const iFactor = iDbRow ? dbRowToFactorRow(iDbRow) : newFactorRow(MF_PARAMS);
 
-  const res = mfLearnOne(MF_PARAMS, gs.mean, gs.n, uFactor, iFactor, rating);
+  const res = mfLearnOne({
+    params: MF_PARAMS, globalMean: gs.mean, n: gs.n, user: uFactor, item: iFactor, rating,
+  });
   gs.mean = res.globalMean;
   gs.n    = res.n;
 

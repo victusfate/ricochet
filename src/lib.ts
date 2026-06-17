@@ -12,4 +12,4 @@ export {
   newFactorRow,
   zeroFactorRow,
 } from './scoring';
-export type { MfParams, FactorRow } from './scoring';
+export type { MfParams, FactorRow, MfLearnInput } from './scoring';

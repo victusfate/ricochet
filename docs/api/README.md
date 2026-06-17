@@ -183,7 +183,7 @@ const ranked = articleIds
 import {
   mfPredict, mfLearnOne, ACTION_RATING, DEFAULT_MF_PARAMS,
   newFactorRow, zeroFactorRow, isValidEvent,
-  type InteractionEvent, type RecResponse, type MfParams, type FactorRow,
+  type InteractionEvent, type RecResponse, type MfParams, type FactorRow, type MfLearnInput,
 } from '@victusfate/ricochet';
 ```
 

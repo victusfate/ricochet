@@ -10,6 +10,7 @@
 - [ArticlesResponse](interfaces/ArticlesResponse.md)
 - [FactorRow](interfaces/FactorRow.md)
 - [InteractionEvent](interfaces/InteractionEvent.md)
+- [MfLearnInput](interfaces/MfLearnInput.md)
 - [MfParams](interfaces/MfParams.md)
 - [RecCacheInfo](interfaces/RecCacheInfo.md)
 - [RecCoreResponse](interfaces/RecCoreResponse.md)

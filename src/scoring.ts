@@ -97,6 +97,22 @@ export function mfPredict(
   return globalMean + user.bias + item.bias + dot;
 }
 
+/** Inputs to one online SGD step of Biased Matrix Factorization. */
+export interface MfLearnInput {
+  /** Hyperparameters controlling learning rates, regularisation, and clipping. */
+  params:     MfParams;
+  /** Current running mean of all observed ratings. */
+  globalMean: number;
+  /** Number of ratings seen so far (before this one). */
+  n:          number;
+  /** Current user factor row. */
+  user:       FactorRow;
+  /** Current item factor row. */
+  item:       FactorRow;
+  /** Observed rating for this (user, item) pair (see `ACTION_RATING`). */
+  rating:     number;
+}
+
 /**
  * Performs one online SGD step of Biased Matrix Factorization.
  *
@@ -104,22 +120,12 @@ export function mfPredict(
  * are never mutated. Latent vectors are updated simultaneously (both gradients
  * are computed from the old vectors before either is applied).
  *
- * @param params - Hyperparameters controlling learning rates, regularisation, and clipping.
- * @param globalMean - Current running mean of all observed ratings.
- * @param n - Number of ratings seen so far (before this one).
- * @param user - Current user factor row.
- * @param item - Current item factor row.
- * @param rating - Observed rating for this (user, item) pair (see `ACTION_RATING`).
  * @returns `{ globalMean, n, user, item }` — updated state after one SGD step.
  */
 export function mfLearnOne(
-  params:     MfParams,
-  globalMean: number,
-  n:          number,
-  user:       FactorRow,
-  item:       FactorRow,
-  rating:     number,
+  input: MfLearnInput,
 ): { globalMean: number; n: number; user: FactorRow; item: FactorRow } {
+  const { params, globalMean, n, user, item, rating } = input;
   const pred   = mfPredict(globalMean, user, item);
   const rawErr = rating - pred;
   const err    = Math.max(-params.clipError, Math.min(params.clipError, rawErr));
