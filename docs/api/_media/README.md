@@ -1,4 +1,4 @@
-**@victusfate/ricochet v1.10.0**
+**@victusfate/ricochet v2.0.0**
 
 ***
 
