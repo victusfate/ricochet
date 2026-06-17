@@ -6,6 +6,9 @@ import { corsHeaders } from './cors';
 import { json } from './http';
 
 export const CACHE_TTL_SECONDS = 300;
+// Byte lengths for SHA-256 hash prefixes used in cache keys and ETags.
+const ETAG_HASH_BYTES      = 16;
+const CACHE_KEY_HASH_BYTES = 12;
 
 async function sha256HexPrefix(text: string, nBytes: number): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
@@ -17,11 +20,11 @@ async function sha256HexPrefix(text: string, nBytes: number): Promise<string> {
 
 /** Computes a stable ETag from the ranked article ID list. */
 async function computeETag(articleIds: string[]): Promise<string> {
-  return `"${await sha256HexPrefix(articleIds.join(','), 16)}"`;
+  return `"${await sha256HexPrefix(articleIds.join(','), ETAG_HASH_BYTES)}"`;
 }
 
 async function hashCandidateArticleIds(candidateArticleIds: string[]): Promise<string> {
-  return sha256HexPrefix([...candidateArticleIds].sort().join(','), 12);
+  return sha256HexPrefix([...candidateArticleIds].sort().join(','), CACHE_KEY_HASH_BYTES);
 }
 
 /**
@@ -35,7 +38,7 @@ export async function buildRecCacheKey(
   limit: number,
   candidateArticleIds?: string[],
 ): Promise<string> {
-  const uid = await sha256HexPrefix(userId, 12);
+  const uid = await sha256HexPrefix(userId, CACHE_KEY_HASH_BYTES);
   if (!candidateArticleIds) return `recs:u:${uid}:limit:${limit}`;
   const poolHash = await hashCandidateArticleIds(candidateArticleIds);
   return `recs:u:${uid}:pool:${poolHash}:limit:${limit}`;
