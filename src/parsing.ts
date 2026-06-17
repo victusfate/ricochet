@@ -5,6 +5,10 @@ import { REC_MAX_CANDIDATES } from './types';
 export const MAX_LIMIT    = 200;
 export const DEFAULT_LIMIT = 50;
 
+// Caps on the topicWeights map from an untrusted source.
+const MAX_TOPIC_WEIGHT_ENTRIES = 20;  // reject maps with too many topics
+const MAX_TOPIC_WEIGHT         = 10;  // clamp each multiplier to prevent runaway score skewing
+
 export function parseLimit(value: unknown): number {
   if (typeof value === 'number' && Number.isFinite(value)) {
     return Math.max(1, Math.min(MAX_LIMIT, Math.trunc(value)));
@@ -66,8 +70,8 @@ export function parseTopicWeights(
   }
   const raw = value as Record<string, unknown>;
   const keys = Object.keys(raw);
-  if (keys.length > 20) {
-    return { message: 'topicWeights must not exceed 20 entries' };
+  if (keys.length > MAX_TOPIC_WEIGHT_ENTRIES) {
+    return { message: `topicWeights must not exceed ${MAX_TOPIC_WEIGHT_ENTRIES} entries` };
   }
   const result: Record<string, number> = {};
   for (const k of keys) {
@@ -76,7 +80,7 @@ export function parseTopicWeights(
     if (typeof v !== 'number' || !Number.isFinite(v) || v < 0) {
       return { message: `topicWeights["${k}"] must be a non-negative finite number` };
     }
-    result[k] = Math.min(v, 10); // cap multiplier to prevent runaway score skewing
+    result[k] = Math.min(v, MAX_TOPIC_WEIGHT);
   }
   return { weights: result };
 }

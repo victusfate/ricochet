@@ -10,6 +10,8 @@ import { isValidEvent } from './validation';
 const RATE_LIMIT_INTERACTIONS_MAX = 60;
 const RATE_LIMIT_RECS_MAX = 30;
 const RATE_LIMIT_WINDOW_MS = 60_000;
+// Sweep stale buckets once the map grows past this, bounding memory after a traffic spike.
+const RATE_BUCKET_SWEEP_THRESHOLD = 1_000;
 
 // Per-isolate in-memory buckets — best-effort only. Cloudflare may run many isolates
 // across colos, so the effective cap is max × isolate count. Absent CF-Connecting-IP
@@ -153,10 +155,9 @@ function checkRateLimit(
   const bucketKey = `${key}:${clientIp}`;
   const existing = rateBuckets.get(bucketKey);
   if (!existing || existing.resetAt <= now) {
-    // Bucket expired or missing — reset. Opportunistically sweep stale entries to
-    // prevent unbounded memory growth after traffic spikes (e.g. DDoS burst).
+    // Bucket expired or missing — reset, then opportunistically sweep stale entries.
     rateBuckets.set(bucketKey, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
-    if (rateBuckets.size > 1_000) {
+    if (rateBuckets.size > RATE_BUCKET_SWEEP_THRESHOLD) {
       for (const [k, bucket] of rateBuckets) {
         if (bucket.resetAt <= now) rateBuckets.delete(k);
       }
