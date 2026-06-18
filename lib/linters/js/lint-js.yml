@@ -1,5 +1,5 @@
 # scaffold-linter: js
-name: Lint JS/TS
+name: Lint JS
 
 on:
   pull_request:
@@ -7,8 +7,6 @@ on:
       - '**/*.js'
       - '**/*.mjs'
       - '**/*.cjs'
-      - '**/*.ts'
-      - '**/*.tsx'
 
 jobs:
   eslint:
@@ -19,5 +17,5 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
-      - run: npm install --save-dev eslint @eslint/js typescript-eslint globals
+      - run: npm install --save-dev eslint @eslint/js globals
       - run: npx eslint .
