@@ -1,14 +1,14 @@
-# scaffold-linter: js
-name: Lint JS/TS
+# scaffold-linter: ts
+name: Lint TS
 
 on:
   pull_request:
     paths:
+      - '**/*.ts'
+      - '**/*.tsx'
       - '**/*.js'
       - '**/*.mjs'
       - '**/*.cjs'
-      - '**/*.ts'
-      - '**/*.tsx'
 
 jobs:
   eslint:
