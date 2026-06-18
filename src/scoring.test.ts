@@ -35,7 +35,7 @@ describe('S1 — mfLearnOne', () => {
     const rating = 2.0;
 
     const errBefore = Math.abs(rating - mfPredict(0.3, user, item));
-    const res = mfLearnOne(DEFAULT_MF_PARAMS, 0.3, 10, user, item, rating);
+    const res = mfLearnOne({ params: DEFAULT_MF_PARAMS, globalMean: 0.3, n: 10, user, item, rating });
     const errAfter = Math.abs(rating - mfPredict(res.globalMean, res.user, res.item));
 
     expect(errAfter).toBeLessThan(errBefore);
@@ -50,7 +50,7 @@ describe('S1 — mfLearnOne', () => {
     const rating = 1.0;
 
     for (let iter = 0; iter < 200; iter++) {
-      const res = mfLearnOne(params, mean, n, u, i, rating);
+      const res = mfLearnOne({ params, globalMean: mean, n, user: u, item: i, rating });
       mean = res.globalMean; n = res.n; u = res.user; i = res.item;
     }
 
@@ -62,8 +62,8 @@ describe('S1 — mfLearnOne', () => {
     const baseUser = zeroFactorRow(params);
     const baseItem = zeroFactorRow(params);
 
-    const resSave   = mfLearnOne(params, 0, 0, baseUser, { ...baseItem, v: [...baseItem.v] }, 2.0);
-    const resUpvote = mfLearnOne(params, 0, 0, baseUser, { ...baseItem, v: [...baseItem.v] }, 1.0);
+    const resSave   = mfLearnOne({ params, globalMean: 0, n: 0, user: baseUser, item: { ...baseItem, v: [...baseItem.v] }, rating: 2.0 });
+    const resUpvote = mfLearnOne({ params, globalMean: 0, n: 0, user: baseUser, item: { ...baseItem, v: [...baseItem.v] }, rating: 1.0 });
 
     expect(Math.abs(resSave.item.bias)).toBeGreaterThan(Math.abs(resUpvote.item.bias));
   });
@@ -75,7 +75,7 @@ describe('S1 — mfLearnOne', () => {
     let i = { bias: 0, v: new Array(10).fill(0.1) };
 
     for (let iter = 0; iter < 100; iter++) {
-      const res = mfLearnOne(params, mean, n, u, i, -1.0);
+      const res = mfLearnOne({ params, globalMean: mean, n, user: u, item: i, rating: -1.0 });
       mean = res.globalMean; n = res.n; u = res.user; i = res.item;
     }
 
@@ -89,7 +89,7 @@ describe('S1 — mfLearnOne', () => {
 
     // pred = 0, rating = 100 → raw err = 100, clipped to 1.0
     // bias update = lrBias * 1.0 = 0.05
-    const res = mfLearnOne(params, 0, 0, user, item, 100);
+    const res = mfLearnOne({ params, globalMean: 0, n: 0, user, item, rating: 100 });
     expect(res.user.bias).toBeCloseTo(0.05);
     expect(res.item.bias).toBeCloseTo(0.05);
   });
@@ -101,7 +101,7 @@ describe('S1 — mfLearnOne', () => {
 
     // Set rating = current prediction so err = 0; only l2 acts on latent weights
     const pred = mfPredict(0, user, item);
-    const res  = mfLearnOne(params, 0, 100, user, item, pred);
+    const res  = mfLearnOne({ params, globalMean: 0, n: 100, user, item, rating: pred });
 
     // new v[f] = v[f] + lrLatent * (0 - l2 * v[f]) = v[f] * (1 - lrLatent * l2) < v[f]
     expect(res.user.v[0]).toBeLessThan(user.v[0]);
@@ -116,7 +116,7 @@ describe('S1 — mfLearnOne', () => {
 
     const ratings = [2.0, 1.0, 0.5, -1.0, 2.0];
     for (const rating of ratings) {
-      const res = mfLearnOne(params, mean, n, u, i, rating);
+      const res = mfLearnOne({ params, globalMean: mean, n, user: u, item: i, rating });
       mean = res.globalMean; n = res.n; u = res.user; i = res.item;
     }
 

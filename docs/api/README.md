@@ -1,4 +1,4 @@
-**@victusfate/ricochet v1.10.0**
+**@victusfate/ricochet v2.0.0**
 
 ***
 
@@ -183,7 +183,7 @@ const ranked = articleIds
 import {
   mfPredict, mfLearnOne, ACTION_RATING, DEFAULT_MF_PARAMS,
   newFactorRow, zeroFactorRow, isValidEvent,
-  type InteractionEvent, type RecResponse, type MfParams, type FactorRow,
+  type InteractionEvent, type RecResponse, type MfParams, type FactorRow, type MfLearnInput,
 } from '@victusfate/ricochet';
 ```
 
@@ -289,6 +289,30 @@ Results on MovieLens 100K (100k ratings, 943 users, 1682 items, 80/20 split):
 | **BiasedMF** | **0.930** | **0.733** |
 
 ## Migration notes
+
+### Upgrading to 2.0.0
+
+#### `mfLearnOne` now takes an options object (npm library)
+
+The six positional arguments have been replaced with a single `MfLearnInput` object.
+
+```ts
+// before (v1.x)
+const res = mfLearnOne(params, globalMean, n, user, item, rating);
+
+// after (v2.0)
+const res = mfLearnOne({ params, globalMean, n, user, item, rating });
+```
+
+`MfLearnInput` is exported from the package for typed construction:
+
+```ts
+import type { MfLearnInput } from '@victusfate/ricochet';
+```
+
+Return value is unchanged: `{ globalMean, n, user, item }`.
+
+---
 
 ### Upgrading to 1.5.x
 

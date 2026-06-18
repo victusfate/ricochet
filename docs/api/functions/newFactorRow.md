@@ -1,4 +1,4 @@
-[**@victusfate/ricochet v1.10.0**](../README.md)
+[**@victusfate/ricochet v2.0.0**](../README.md)
 
 ***
 

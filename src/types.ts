@@ -26,7 +26,7 @@ export interface InteractionEvent {
   userId:    string;   // anonymous stable ID
   articleId: string;   // 16-hex article ID
   sourceId:  string;   // stable slug, e.g. "ars-technica"
-  topics:    Topic[];  // 1–3 topics
+  topics:    Topic[];  // 1–10 topics (see MAX_TOPICS in validation.ts)
   action:    Action;
   ts:        number;   // epoch ms (advisory — server overwrites with its own clock to prevent prune-window spoofing)
 }
@@ -115,6 +115,3 @@ export interface RecResponse extends RecCoreResponse {
   cache: RecCacheInfo;
   timingMs: RecTimingMs;
 }
-
-
-

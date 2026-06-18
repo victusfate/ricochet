@@ -181,7 +181,9 @@ function trainModel(trainSet: Rating[], epochs: number, params: MfParams): Model
     for (const r of shuffled) {
       const u   = model.userFactors.get(r.userId) ?? newFactorRow(params);
       const i   = model.itemFactors.get(r.itemId) ?? newFactorRow(params);
-      const res = mfLearnOne(params, model.globalMean, model.n, u, i, r.rating);
+      const res = mfLearnOne({
+        params, globalMean: model.globalMean, n: model.n, user: u, item: i, rating: r.rating,
+      });
       model.globalMean = res.globalMean;
       model.n          = res.n;
       model.userFactors.set(r.userId, res.user);

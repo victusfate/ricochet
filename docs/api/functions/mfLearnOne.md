@@ -1,4 +1,4 @@
-[**@victusfate/ricochet v1.10.0**](../README.md)
+[**@victusfate/ricochet v2.0.0**](../README.md)
 
 ***
 
@@ -6,9 +6,9 @@
 
 # Function: mfLearnOne()
 
-> **mfLearnOne**(`params`, `globalMean`, `n`, `user`, `item`, `rating`): `object`
+> **mfLearnOne**(`input`): `object`
 
-Defined in: [scoring.ts:115](https://github.com/victusfate/ricochet/blob/main/src/scoring.ts#L115)
+Defined in: [scoring.ts:125](https://github.com/victusfate/ricochet/blob/main/src/scoring.ts#L125)
 
 Performs one online SGD step of Biased Matrix Factorization.
 
@@ -18,41 +18,9 @@ are computed from the old vectors before either is applied).
 
 ## Parameters
 
-### params
+### input
 
-[`MfParams`](../interfaces/MfParams.md)
-
-Hyperparameters controlling learning rates, regularisation, and clipping.
-
-### globalMean
-
-`number`
-
-Current running mean of all observed ratings.
-
-### n
-
-`number`
-
-Number of ratings seen so far (before this one).
-
-### user
-
-[`FactorRow`](../interfaces/FactorRow.md)
-
-Current user factor row.
-
-### item
-
-[`FactorRow`](../interfaces/FactorRow.md)
-
-Current item factor row.
-
-### rating
-
-`number`
-
-Observed rating for this (user, item) pair (see `ACTION_RATING`).
+[`MfLearnInput`](../interfaces/MfLearnInput.md)
 
 ## Returns
 
