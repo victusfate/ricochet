@@ -38,6 +38,8 @@
     "dev": "wrangler dev --port 8790",
     "cf-typegen": "wrangler types",
     "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix && npm run typecheck",
     "test": "vitest run",
     "docs:api": "typedoc",
     "eval:movielens": "tsx --tsconfig tsconfig.scripts.json scripts/movielens-eval.ts"
