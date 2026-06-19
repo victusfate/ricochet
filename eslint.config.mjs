@@ -1,4 +1,4 @@
-// scaffold-linter: ts sha256:bcd2db2ba0c1
+// scaffold-linter: ts sha256:e898197b908b
 import js from '@eslint/js';
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
@@ -20,9 +20,10 @@ export default tseslint.config(
       'dist/**',
       'build/**',
       'coverage/**',
-      // repo tune: tooling/config + dev scripts live outside src/**, the only
-      // path in this repo's tsconfig include, so they aren't in the TS program
-      // (projectService would error on them). Linting targets product code.
+      // Repo tune (type-aware linting): standalone TS files outside your
+      // tsconfig `include` (e.g. `*.config.ts`, `scripts/**`) aren't in the TS
+      // program, so `projectService` errors on them. Ignore the ones your
+      // tsconfig doesn't cover. This repo's tsconfig includes only src/**:
       '*.config.ts',
       '*.config.mts',
       'scripts/**',
@@ -45,9 +46,12 @@ export default tseslint.config(
       // strips `as` assertions tsc actually requires — breaking the build on
       // `eslint --fix`. tsc --strict is authoritative; defer to it.
       '@typescript-eslint/no-unnecessary-type-assertion': 'off',
-      // repo tune: honor the `_`-prefix convention for intentionally-unused
-      // args/vars (e.g. `_ctx`, `_controller` in Worker handler signatures).
-      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
+      // Honor the `_`-prefix convention for intentionally-unused args/vars/catch
+      // bindings (e.g. `_ctx`, `_controller` in Worker handler signatures, or
+      // `catch (_e)`) — recommended flags these as errors without an escape hatch.
+      '@typescript-eslint/no-unused-vars': ['error', {
+        argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_',
+      }],
       // scaffold quality thresholds — mirror the four-dimension rubric
       'max-lines': ['warn', { max: 500 }],
       'max-params': ['warn', 4],
