@@ -1,4 +1,4 @@
-// scaffold-linter: ts sha256:803afd365cee
+// scaffold-linter: ts sha256:bcd2db2ba0c1
 import js from '@eslint/js';
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
@@ -59,5 +59,12 @@ export default tseslint.config(
     // Type-aware rules need a program; config and JS files aren't in one.
     files: ['**/*.js', '**/*.mjs', '**/*.cjs'],
     ...tseslint.configs.disableTypeChecked,
+  },
+  {
+    // Tests: a literal like `200` in a status assertion or a fixture value is
+    // the spec itself, not a hidden constant — naming it adds indirection
+    // without insight. Disable no-magic-numbers for test files only.
+    files: ['**/*.{test,spec}.{js,mjs,cjs,jsx,ts,tsx,mts,cts}', '**/{test,tests,__tests__}/**'],
+    rules: { 'no-magic-numbers': 'off' },
   },
 );
