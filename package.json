@@ -1,6 +1,6 @@
 {
   "name": "@victusfate/ricochet",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Biased Matrix Factorization recommendation engine — Cloudflare Worker + standalone scoring library",
   "license": "MIT",
   "author": "victusfate",
@@ -38,6 +38,8 @@
     "dev": "wrangler dev --port 8790",
     "cf-typegen": "wrangler types",
     "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix && npm run typecheck",
     "test": "vitest run",
     "docs:api": "typedoc",
     "eval:movielens": "tsx --tsconfig tsconfig.scripts.json scripts/movielens-eval.ts"
@@ -58,6 +60,7 @@
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "^0.16.10",
     "@cloudflare/workers-types": "^4.20260409.1",
+    "@eslint/js": "^10.0.1",
     "@semantic-release/changelog": "^6.0.3",
     "@semantic-release/commit-analyzer": "^13.0.1",
     "@semantic-release/git": "^10.0.1",
@@ -66,12 +69,15 @@
     "@semantic-release/release-notes-generator": "^14.1.0",
     "@types/node": "^25.6.0",
     "conventional-changelog-conventionalcommits": "^9.3.1",
+    "eslint": "^10.5.0",
+    "globals": "^17.6.0",
     "semantic-release": "^25.0.3",
     "tsup": "^8.5.1",
     "tsx": "^4.21.0",
     "typedoc": "^0.28.19",
     "typedoc-plugin-markdown": "^4.11.0",
     "typescript": "^5.5.2",
+    "typescript-eslint": "^8.61.1",
     "vitest": "^4.1.5",
     "wrangler": "^4.81.0"
   }

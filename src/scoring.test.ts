@@ -96,8 +96,8 @@ describe('S1 — mfLearnOne', () => {
 
   it('l2 regularisation shrinks latent weights when err = 0', () => {
     const params = { ...DEFAULT_MF_PARAMS, l2Latent: 0.2, lrLatent: 0.1, clipError: 1e12 };
-    const user = { bias: 0, v: new Array(10).fill(0.5) };
-    const item = { bias: 0, v: new Array(10).fill(0.5) };
+    const user = { bias: 0, v: new Array<number>(10).fill(0.5) };
+    const item = { bias: 0, v: new Array<number>(10).fill(0.5) };
 
     // Set rating = current prediction so err = 0; only l2 acts on latent weights
     const pred = mfPredict(0, user, item);

@@ -3,6 +3,7 @@
 export const RATE_LIMIT_INTERACTIONS_MAX = 60;
 export const RATE_LIMIT_RECS_MAX = 30;
 const RATE_LIMIT_WINDOW_MS = 60_000;
+const MS_PER_SECOND = 1000;
 // Sweep stale buckets once the map grows past this, bounding memory after a traffic spike.
 const RATE_BUCKET_SWEEP_THRESHOLD = 1_000;
 
@@ -41,7 +42,7 @@ export function checkRateLimit(
   if (existing.count >= max) {
     return {
       limited: true,
-      retryAfterSeconds: Math.max(1, Math.ceil((existing.resetAt - now) / 1000)),
+      retryAfterSeconds: Math.max(1, Math.ceil((existing.resetAt - now) / MS_PER_SECOND)),
     };
   }
   existing.count += 1;

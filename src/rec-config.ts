@@ -2,8 +2,17 @@
 
 import { DEFAULT_MF_PARAMS } from './scoring';
 
-export const INTERACTION_RETENTION_MS = 30  * 24 * 60 * 60 * 1000; // 30 days
-export const FACTOR_RETENTION_MS      = 180 * 24 * 60 * 60 * 1000; // 180 days — decoupled from interactions
+const HOURS_PER_DAY      = 24;
+const MINUTES_PER_HOUR   = 60;
+const SECONDS_PER_MINUTE = 60;
+const MS_PER_SECOND      = 1000;
+const MS_PER_DAY = HOURS_PER_DAY * MINUTES_PER_HOUR * SECONDS_PER_MINUTE * MS_PER_SECOND;
+
+const INTERACTION_RETENTION_DAYS = 30;
+const FACTOR_RETENTION_DAYS      = 180; // decoupled from interactions
+
+export const INTERACTION_RETENTION_MS = INTERACTION_RETENTION_DAYS * MS_PER_DAY;
+export const FACTOR_RETENTION_MS      = FACTOR_RETENTION_DAYS * MS_PER_DAY;
 export const MF_PARAMS = DEFAULT_MF_PARAMS;
 export const GLOBAL_CANDIDATE_LIMIT = 200;
 

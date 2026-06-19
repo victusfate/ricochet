@@ -7,6 +7,10 @@ import { corsHeaders } from './cors';
 // before JSON.parse() allocates memory for the full payload.
 export const MAX_BODY_BYTES = 50_000;
 
+// HTTP status codes used by the response helpers.
+const HTTP_BAD_REQUEST = 400;
+const HTTP_PAYLOAD_TOO_LARGE = 413;
+
 export function json(
   data: unknown,
   request: Request,
@@ -23,7 +27,7 @@ export function json(
 }
 
 /** Canonical error response: `{ ok: false, message }` with CORS headers. */
-export function badRequest(request: Request, env: RecWorkerEnv, message: string, status = 400): Response {
+export function badRequest(request: Request, env: RecWorkerEnv, message: string, status = HTTP_BAD_REQUEST): Response {
   return json({ ok: false, message }, request, env, { status });
 }
 
@@ -44,7 +48,7 @@ export async function readBoundedJson(
 ): Promise<{ value: unknown } | { error: Response }> {
   const contentLength = parseInt(request.headers.get('Content-Length') ?? '0', 10);
   if (contentLength > MAX_BODY_BYTES) {
-    return { error: badRequest(request, env, 'Request body too large', 413) };
+    return { error: badRequest(request, env, 'Request body too large', HTTP_PAYLOAD_TOO_LARGE) };
   }
   let text: string;
   try {
@@ -53,7 +57,7 @@ export async function readBoundedJson(
     return { error: badRequest(request, env, 'Invalid JSON body') };
   }
   if (text.length > MAX_BODY_BYTES) {
-    return { error: badRequest(request, env, 'Request body too large', 413) };
+    return { error: badRequest(request, env, 'Request body too large', HTTP_PAYLOAD_TOO_LARGE) };
   }
   try {
     return { value: JSON.parse(text) as unknown };
