@@ -45,6 +45,9 @@ export default tseslint.config(
       // strips `as` assertions tsc actually requires — breaking the build on
       // `eslint --fix`. tsc --strict is authoritative; defer to it.
       '@typescript-eslint/no-unnecessary-type-assertion': 'off',
+      // repo tune: honor the `_`-prefix convention for intentionally-unused
+      // args/vars (e.g. `_ctx`, `_controller` in Worker handler signatures).
+      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_', varsIgnorePattern: '^_' }],
       // scaffold quality thresholds — mirror the four-dimension rubric
       'max-lines': ['warn', { max: 500 }],
       'max-params': ['warn', 4],

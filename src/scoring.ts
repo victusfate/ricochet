@@ -74,7 +74,7 @@ export function newFactorRow(params: MfParams): FactorRow {
  * `mfPredict(globalMean, zeroUser, itemFactor)` reduces to `globalMean + item.bias`.
  */
 export function zeroFactorRow(params: MfParams): FactorRow {
-  return { bias: 0, v: new Array(params.nFactors).fill(0) };
+  return { bias: 0, v: new Array<number>(params.nFactors).fill(0) };
 }
 
 /**

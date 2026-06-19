@@ -16,7 +16,7 @@ export { isAllowedOrigin } from './cors';
 export { buildRecCacheKey } from './rec-cache';
 
 export default {
-  async scheduled(_controller: ScheduledController, env: RecWorkerEnv, ctx: ExecutionContext): Promise<void> {
+  scheduled(_controller: ScheduledController, env: RecWorkerEnv, ctx: ExecutionContext): void {
     const stub = getRecDOStub(env);
     ctx.waitUntil(stub.fetch(new Request('http://do-internal/prune', { method: 'POST' })));
   },
