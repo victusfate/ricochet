@@ -37,9 +37,10 @@ jobs:
             exit 0
           fi
 
-          # Use the latest tag on main as the base — this matches what
-          # semantic-release will see on merge, regardless of when this
-          # branch was cut relative to the last release.
+          # Use the latest tag on main as the base, regardless of when this
+          # branch was cut relative to the last release. tag-on-merge.yml
+          # creates that tag from package.json once a PR lands on main, so the
+          # base here always reflects the last released version.
           LAST_TAG=$(git tag --merged origin/main --sort=-v:refname | head -1)
           if [ -z "$LAST_TAG" ]; then
             echo "No tags found on main — skipping"

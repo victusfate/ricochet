@@ -1,0 +1,43 @@
+name: Tag on Merge
+
+# package.json is the single source of truth for the version. version-bump.yml
+# sets it on the PR branch before merge; this workflow mirrors that version to a
+# git tag + GitHub release once the change lands on main. Nothing here reads the
+# squash commit message, so squash-merging cannot cause version/tag drift.
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  tag:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Tag and release from package.json version
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION=$(jq -r .version package.json)
+          TAG="v${VERSION}"
+
+          if [ -n "$(git tag -l "$TAG")" ]; then
+            echo "$TAG already exists — nothing to do"
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "$TAG"
+          git push origin "$TAG"
+
+          gh release create "$TAG" --title "$TAG" --generate-notes
