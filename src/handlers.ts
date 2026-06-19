@@ -11,6 +11,8 @@ import { checkRateLimit, RATE_LIMIT_INTERACTIONS_MAX, RATE_LIMIT_RECS_MAX } from
 import { buildRecCacheKey, CACHE_TTL_SECONDS, respondWithETag, withObservability } from './rec-cache';
 
 const MAX_BATCH_SIZE = 200;
+const HTTP_BAD_GATEWAY = 502;
+const MS_PER_SECOND = 1000;
 
 export function getRecDOStub(env: RecWorkerEnv): DurableObjectStub {
   const id = env.REC_DO.idFromName('global');
@@ -51,7 +53,7 @@ export async function handleInteractions(request: Request, env: RecWorkerEnv): P
   }));
   if (!doRes.ok) {
     // Never claim success when events were dropped.
-    return badRequest(request, env, 'Failed to ingest interactions', 502);
+    return badRequest(request, env, 'Failed to ingest interactions', HTTP_BAD_GATEWAY);
   }
 
   return json({ ok: true, queued: valid.length }, request, env);
@@ -112,7 +114,7 @@ export async function handleRecommendations(
       request,
       cacheKey,
       'hit',
-      Math.max(0, Math.floor((now - cached.generatedAt) / 1000)),
+      Math.max(0, Math.floor((now - cached.generatedAt) / MS_PER_SECOND)),
       {
         total: now - requestStartedAt,
         cacheLookup: cacheLookupMs,

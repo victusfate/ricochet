@@ -14,6 +14,8 @@ async function sha256HexPrefix(text: string, nBytes: number): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
   return Array.from(new Uint8Array(digest))
     .slice(0, nBytes)
+    // hex byte formatting: radix 16, two chars per byte — the literals are the idiom
+    // eslint-disable-next-line no-magic-numbers
     .map(b => b.toString(16).padStart(2, '0'))
     .join('');
 }

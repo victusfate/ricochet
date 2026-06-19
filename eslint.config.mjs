@@ -27,6 +27,9 @@ export default tseslint.config(
       '*.config.ts',
       '*.config.mts',
       'scripts/**',
+      // the flat config self-lints; its rule-threshold literals (4, 10, 500)
+      // trip no-magic-numbers. Don't lint the linter config.
+      'eslint.config.mjs',
     ],
   },
   js.configs.recommended,

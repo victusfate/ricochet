@@ -55,6 +55,8 @@ function normalSample(sigma: number): number {
   // Box-Muller transform — N(0, sigma)
   const u1 = Math.random();
   const u2 = Math.random();
+  // Box-Muller formula literals (-2, ε=1e-10, 2π) are the spec, not hidden constants
+  // eslint-disable-next-line no-magic-numbers
   return sigma * Math.sqrt(-2 * Math.log(u1 + 1e-10)) * Math.cos(2 * Math.PI * u2);
 }
 
