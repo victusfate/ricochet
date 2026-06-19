@@ -1,4 +1,4 @@
-// scaffold-linter: ts sha256:7186527489b1
+// scaffold-linter: ts sha256:803afd365cee
 import js from '@eslint/js';
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
@@ -21,8 +21,8 @@ export default tseslint.config(
       'build/**',
       'coverage/**',
       // repo tune: tooling/config + dev scripts live outside src/**, the only
-      // path in this repo's tsconfig include, so they aren't in a TS program.
-      // Linting targets product code under src/.
+      // path in this repo's tsconfig include, so they aren't in the TS program
+      // (projectService would error on them). Linting targets product code.
       '*.config.ts',
       '*.config.mts',
       'scripts/**',
@@ -35,21 +35,21 @@ export default tseslint.config(
       // Node + browser globals so console/process/window aren't flagged no-undef.
       globals: { ...globals.node, ...globals.browser },
       parserOptions: {
-        project: './tsconfig.json',
+        projectService: true,
         tsconfigRootDir: import.meta.dirname,
       },
     },
     rules: {
+      // typescript-eslint's parser resolves ambient/global types (Cloudflare
+      // Workers, vitest, etc.) differently than tsc, so this rule's autofix
+      // strips `as` assertions tsc actually requires — breaking the build on
+      // `eslint --fix`. tsc --strict is authoritative; defer to it.
+      '@typescript-eslint/no-unnecessary-type-assertion': 'off',
       // scaffold quality thresholds — mirror the four-dimension rubric
       'max-lines': ['warn', { max: 500 }],
       'max-params': ['warn', 4],
       'complexity': ['warn', 10],
       'no-magic-numbers': ['warn', { ignore: [0, 1], ignoreArrayIndexes: true }],
-      // repo tune: typescript-eslint's parser resolves Cloudflare/vitest ambient
-      // types differently than tsc, so this rule's autofix strips `as` assertions
-      // that tsc actually requires (e.g. `await res.json() as T`). tsc --strict is
-      // authoritative for redundant assertions; defer to it and disable here.
-      '@typescript-eslint/no-unnecessary-type-assertion': 'off',
     },
   },
   {
