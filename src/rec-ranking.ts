@@ -38,6 +38,7 @@ export function getDiverseCandidates(sql: SqlStorage, totalLimit: number): strin
   if (seen.size < totalLimit) {
     const fillRows = [...sql.exec<Row>(
       `SELECT article_id FROM item_factors ORDER BY bias DESC LIMIT ?`,
+      // Overfetch by seen.size: up to that many results will be diverse-set duplicates.
       totalLimit + seen.size,
     )];
     for (const r of fillRows) {

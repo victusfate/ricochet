@@ -57,15 +57,17 @@ export function learnOne(
   gs.mean = res.globalMean;
   gs.n    = res.n;
 
+  // v-column update clause shared by both upserts; defined once to prevent schema drift.
+  const V_UPDATE = 'v0=excluded.v0,v1=excluded.v1,v2=excluded.v2,v3=excluded.v3,v4=excluded.v4,'
+                 + 'v5=excluded.v5,v6=excluded.v6,v7=excluded.v7,v8=excluded.v8,v9=excluded.v9';
+
   const uv = res.user.v;
   sql.exec(
     `INSERT INTO user_factors
        (user_id,bias,v0,v1,v2,v3,v4,v5,v6,v7,v8,v9,updated_at)
      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
      ON CONFLICT(user_id) DO UPDATE SET
-       bias=excluded.bias,
-       v0=excluded.v0,v1=excluded.v1,v2=excluded.v2,v3=excluded.v3,v4=excluded.v4,
-       v5=excluded.v5,v6=excluded.v6,v7=excluded.v7,v8=excluded.v8,v9=excluded.v9,
+       bias=excluded.bias,${V_UPDATE},
        updated_at=excluded.updated_at`,
     event.userId, res.user.bias,
     uv[0], uv[1], uv[2], uv[3], uv[4], uv[5], uv[6], uv[7], uv[8], uv[9],
@@ -78,9 +80,7 @@ export function learnOne(
        (article_id,bias,v0,v1,v2,v3,v4,v5,v6,v7,v8,v9,source_id,topic,all_topics,updated_at)
      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
      ON CONFLICT(article_id) DO UPDATE SET
-       bias=excluded.bias,
-       v0=excluded.v0,v1=excluded.v1,v2=excluded.v2,v3=excluded.v3,v4=excluded.v4,
-       v5=excluded.v5,v6=excluded.v6,v7=excluded.v7,v8=excluded.v8,v9=excluded.v9,
+       bias=excluded.bias,${V_UPDATE},
        source_id=excluded.source_id, topic=excluded.topic,
        all_topics=excluded.all_topics, updated_at=excluded.updated_at`,
     event.articleId, res.item.bias,

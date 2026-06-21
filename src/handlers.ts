@@ -80,9 +80,10 @@ export async function handleRecommendations(
     if ('error' in recsBodyResult) return recsBodyResult.error;
     body = recsBodyResult.value as RecRankRequest | null;
   }
-  const parsed = request.method === 'GET'
-    ? parseRankRequest({ method: 'GET', searchParams: url.searchParams })
-    : parseRankRequest({ method: 'POST', searchParams: url.searchParams, body });
+  const rankArg = request.method === 'GET'
+    ? { method: 'GET' as const, searchParams: url.searchParams }
+    : { method: 'POST' as const, searchParams: url.searchParams, body };
+  const parsed = parseRankRequest(rankArg);
   if (!parsed.ok) {
     return badRequest(request, env, parsed.message);
   }

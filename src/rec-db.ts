@@ -5,6 +5,7 @@ import type { FactorRow } from './scoring';
 // workerd Durable Object SQLite caps bound parameters at 100 (SQLITE_MAX_VARIABLE_NUMBER).
 const SQL_VAR_LIMIT = 100;
 
+// SQLite has no array column type — the 10 factor dimensions are stored as named scalars v0..v9.
 export type FactorsDbRow = {
   bias: number;
   v0: number; v1: number; v2: number; v3: number; v4: number;
