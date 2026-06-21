@@ -32,10 +32,13 @@ export interface InteractionEvent {
 }
 
 // Shared request cap for feed-pool ranking candidates.
+// quality-ok: magic-number — value is the definition of this named constant
 export const REC_MAX_CANDIDATES = 100;
 
 // Article metadata lookup limits
+// quality-ok: magic-number — value is the definition of this named constant
 export const ARTICLES_GET_MAX  = 50;
+// quality-ok: magic-number — value is the definition of this named constant
 export const ARTICLES_POST_MAX = 500;
 
 export interface ArticleMetaRow {

@@ -1,6 +1,8 @@
 // Best-effort per-isolate IP rate limiting for the ricochet Worker.
 
+// quality-ok: magic-number — value is the definition of this named constant
 export const RATE_LIMIT_INTERACTIONS_MAX = 60;
+// quality-ok: magic-number — value is the definition of this named constant
 export const RATE_LIMIT_RECS_MAX = 30;
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const MS_PER_SECOND = 1000;

@@ -56,6 +56,7 @@ export default tseslint.config(
         argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_',
       }],
       // scaffold quality thresholds — mirror the four-dimension rubric
+      // quality-ok: magic-number — these ARE the threshold definitions
       'max-lines': ['warn', { max: 500 }],
       'max-params': ['warn', 4],
       'complexity': ['warn', 10],

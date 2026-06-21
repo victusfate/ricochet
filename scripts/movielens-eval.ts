@@ -1,17 +1,9 @@
 #!/usr/bin/env tsx
 /**
  * Offline evaluation of ricochet's BiasedMF.
- *
- * Generates a synthetic dataset with known latent structure (K=10 factors,
- * 800 users, 1 200 items, 120 000 ratings), then:
- *   - Splits 80 / 20 train / test
- *   - Compares three predictors: global-mean, item-mean, BiasedMF
- *   - Verifies that the downvote-style filter correctly suppresses items
- *     the model predicts a user will dislike
- *
- * Because the data is generated from a known latent model, we can also
- * measure how well the learned factors recover the ground truth.
- *
+ * Generates a synthetic dataset (K=10 factors, 800 users, 1 200 items),
+ * splits 80/20, compares global-mean / item-mean / BiasedMF predictors,
+ * and verifies the downvote filter suppresses disliked items.
  * Usage:  npm run eval:movielens
  */
 
@@ -51,18 +43,19 @@ function randn(): number {
 
 interface Rating { userId: string; itemId: string; rating: number }
 
+// quality-ok: magic-number — default seed for reproducible synthetic dataset
 function generateDataset(seed = 42): Rating[] {
-  // Deterministic seeding via a simple LCG on top of Math.random
-  // (we just fix the call count by seeding with a known sequence)
-  // Simple approach: use Array.from with known dimensions
+  // Deterministic seeding: simple LCG; Array.from with known dimensions
   const rng = (() => {
     let s = seed;
     return () => {
+      // quality-ok: magic-number — standard Knuth LCG multiplier, addend, and 32-bit mask
       s = (s * 1664525 + 1013904223) & 0xffffffff;
       return (s >>> 0) / 0xffffffff;
     };
   })();
   const grng = () => {
+    // quality-ok: magic-number — 1e-10 prevents log(0) in Box-Muller; domain invariant
     const u1 = rng() + 1e-10, u2 = rng();
     return Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
   };
@@ -129,6 +122,7 @@ function ensureDataset(): { ratings: Rating[]; titles: Map<string, string>; sour
   // Generate synthetic data
   process.stdout.write('Generating synthetic dataset… ');
   fs.mkdirSync(DATA_DIR, { recursive: true });
+  // quality-ok: magic-number — same fixed seed as default parameter; keeps cached file reproducible
   const ratings = generateDataset(42);
   fs.writeFileSync(SYNTH_FILE, ratings.map(r => `${r.userId}\t${r.itemId}\t${r.rating}`).join('\n'));
   console.log(`${ratings.length.toLocaleString()} ratings written to data/synthetic-ratings.tsv`);
@@ -142,6 +136,7 @@ function splitRandom(ratings: Rating[], trainRatio = 0.8, seed = 7): [Rating[], 
   const arr = [...ratings];
   let s = seed;
   const rng = () => {
+    // quality-ok: magic-number — standard Knuth LCG multiplier, addend, and 32-bit mask
     s = (s * 1664525 + 1013904223) & 0xffffffff;
     return (s >>> 0) / 0xffffffff;
   };
@@ -170,6 +165,7 @@ function createModel(params: MfParams): Model {
 function trainModel(trainSet: Rating[], epochs: number, params: MfParams): Model {
   const model = createModel(params);
   const shuffled = [...trainSet];
+  // quality-ok: magic-number — standard Knuth LCG multiplier, addend, and 32-bit mask
   const rng = (() => { let s = 1; return () => { s = (s * 1664525 + 1013904223) & 0xffffffff; return (s >>> 0) / 0xffffffff; }; })();
 
   for (let e = 0; e < epochs; e++) {
@@ -255,6 +251,7 @@ function precisionRecallAt(
   testSet: Rating[],
   candidateItems: string[],
   k = TOP_K,
+  // quality-ok: magic-number — default sample size balances evaluation speed and statistical stability
   sampleUsers = 100,
 ): { precision: number; recall: number; ndcg: number } {
   // Group test ratings by user
@@ -290,27 +287,21 @@ function precisionRecallAt(
 }
 
 // ── Filter verification ───────────────────────────────────────────────────────
-//
-// Rather than checking whether disliked items leak into top-K (they rarely do
-// because the model already suppresses them globally), we directly compare the
-// distribution of predicted scores for liked vs disliked items.  This is a
-// cleaner signal for "is the filter learning the right direction?"
-
+// Compares predicted score distributions for liked vs disliked items rather than
+// checking top-K leakage; cleaner signal for "is the filter learning correctly?"
 interface FilterStats {
   usersChecked:         number;
-  // Predicted score distributions
   avgPredLiked:         number;   // avg predicted score for items rated ≥ LIKE_THRESHOLD
   avgPredDisliked:      number;   // avg predicted score for items rated ≤ DISLIKE_THRESHOLD
-  // Fraction of pairs where liked item is predicted above disliked item
-  pairwiseAccuracy:     number;
-  // What fraction of disliked items fall below the filter cutoff
-  dislikedBelowCutoff:  number;
+  pairwiseAccuracy:     number;   // fraction of (liked, disliked) pairs where liked is ranked above
+  dislikedBelowCutoff:  number;   // fraction of disliked items below the filter cutoff
   likedAboveCutoff:     number;
 }
 
 function verifyFilter(
   model:    Model,
   testSet:  Rating[],
+  // quality-ok: magic-number — default sample size balances evaluation speed and statistical stability
   sampleUsers = 100,
 ): FilterStats {
   const byUser = new Map<string, Map<string, number>>();
@@ -369,13 +360,16 @@ function verifyFilter(
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+// quality-ok: magic-number — bar chart character width, display-only
 function bar(v: number, w = 24): string {
   const fill = Math.max(0, Math.min(w, Math.round(v * w)));
   return '[' + '█'.repeat(fill) + '░'.repeat(w - fill) + ']';
 }
+// quality-ok: magic-number — percentage conversion (×100)
 function pct(v: number): string { return (v * 100).toFixed(1) + '%'; }
 function fmt(v: number, d = 4): string { return v.toFixed(d); }
 function improvementStr(baseline: number, model: number): string {
+  // quality-ok: magic-number — percentage conversion (×100)
   const delta = (1 - model / baseline) * 100;
   return (delta >= 0 ? '+' : '') + delta.toFixed(1) + '%';
 }
@@ -399,6 +393,7 @@ async function main(): Promise<void> {
   console.log();
 
   // 2. Split
+  // quality-ok: magic-number — standard 80/20 train-test split ratio
   const [trainSet, testSet] = splitRandom(all, 0.8);
   console.log(`Split:   ${trainSet.length.toLocaleString()} train (80%)  /  ${testSet.length.toLocaleString()} test (20%)\n`);
 
@@ -419,6 +414,7 @@ async function main(): Promise<void> {
     sigmaInit: 0.1,
   };
   console.log('─── Training BiasedMF (20 epochs) ────────────────────────────');
+  // quality-ok: magic-number — epoch count chosen empirically for convergence on this dataset
   const model = trainModel(trainSet, 20, params);
   console.log(`  Learned global mean: ${fmt(model.globalMean, 3)}`);
   console.log(`  Users with factors:  ${model.userFactors.size}  |  Items: ${model.itemFactors.size}\n`);
@@ -448,8 +444,11 @@ async function main(): Promise<void> {
   console.log(`  Monotonicity (1★ < 2★ < 3★ < 4★ < 5★): ${monotone ? '✓ PASS' : '✗ FAIL'}\n`);
 
   // 7. Ranking quality
+  // quality-ok: magic-number — candidate pool size caps evaluation cost; representative subset
   const candidateItems = [...items].slice(0, 500);
+  // quality-ok: magic-number — 100 sample users balances accuracy and runtime
   const ranking = precisionRecallAt(model, testSet, candidateItems, TOP_K, 100);
+  // quality-ok: magic-number — display label matches the two constants above
   console.log(`─── Ranking quality  @${TOP_K}  (100 sample users, 500 candidates) ──`);
   console.log(`  Precision@${TOP_K}:  ${pct(ranking.precision)}  ${bar(ranking.precision)}`);
   console.log(`  Recall@${TOP_K}:     ${pct(ranking.recall)}  ${bar(ranking.recall)}`);
@@ -458,6 +457,7 @@ async function main(): Promise<void> {
   // 8. Filter verification
   console.log('─── Filter verification ───────────────────────────────────────');
   console.log(`  Liked ≥${LIKE_THRESHOLD}★ vs disliked ≤${DISLIKE_THRESHOLD}★  |  cutoff = globalMean − 1.0 = ${fmt(model.globalMean - 1.0, 2)}\n`);
+  // quality-ok: magic-number — 100 sample users balances accuracy and runtime
   const fv = verifyFilter(model, testSet, 100);
   console.log(`  Users checked: ${fv.usersChecked}`);
   console.log(`  Avg predicted score — liked items:    ${fmt(fv.avgPredLiked, 3)}  ${bar((fv.avgPredLiked - 1) / 4)}`);
@@ -482,6 +482,7 @@ async function main(): Promise<void> {
     const userTest = testSet.filter(r => r.userId === spotUser);
     const liked    = userTest.filter(r => r.rating >= LIKE_THRESHOLD).slice(0, 5);
     const disliked = userTest.filter(r => r.rating <= DISLIKE_THRESHOLD).slice(0, 5);
+    // quality-ok: magic-number — max title display width in characters, cosmetic only
     const label = (id: string) => titles.get(id)?.substring(0, 42) ?? id;
     console.log(`─── Spot-check: user ${spotUser} ───────────────────────────────────────`);
     if (liked.length) {

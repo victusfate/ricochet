@@ -14,10 +14,13 @@ check_file() {
   [ -f "$file" ] || return 0
   local ext="${file##*.}"
 
-  # File length
+  # File length — test/spec files are exempt (they grow with coverage, not complexity).
+  local base="${file##*/}"
+  local is_test=0
+  [[ "$base" == *test* || "$base" == *spec* || "$base" == test-* ]] && is_test=1
   local count
   count=$(wc -l < "$file")
-  if [ "$count" -gt "$MAX_LINES" ]; then
+  if [ "$count" -gt "$MAX_LINES" ] && [ "$is_test" -eq 0 ]; then
     emit "${file}:${MAX_LINES} [Readability/major] file is ${count} lines — exceeds ${MAX_LINES}-line limit; extract modules"
   fi
 
@@ -34,10 +37,6 @@ check_file() {
   #   3. `return`/`exit` statements — values are protocol-defined (HTTP codes, etc.).
   #   4. Named constant definitions — `const NAME = N`, `UPPER_CASE = N`, etc.
   #   5. Numbers inside string literals — stripped before the scan.
-  local base="${file##*/}"
-  local is_test=0
-  [[ "$base" == *test* || "$base" == *spec* || "$base" == test-* ]] && is_test=1
-
   local lineno=0 in_docstring=0 prev_quality_ok=0
   while IFS= read -r line; do
     lineno=$((lineno + 1))

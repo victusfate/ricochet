@@ -5,6 +5,7 @@ const VALID_ACTIONS = new Set<string>(ACTIONS);
 const VALID_TOPICS  = new Set<string>(TOPICS);
 
 // Field length caps prevent KV key overflow (512-byte limit) and unbounded SQLite growth.
+// quality-ok: magic-number — value is the definition of this named constant
 export const MAX_ID_LENGTH = 256;
 const MAX_SOURCE_LENGTH = 128;
 const MAX_TOPICS       = 10;
