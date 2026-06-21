@@ -8,4 +8,4 @@
 
 > **RecCacheStatus** = `"hit"` \| `"miss"` \| `"bypass"`
 
-Defined in: [types.ts:97](https://github.com/victusfate/ricochet/blob/main/src/types.ts#L97)
+Defined in: [types.ts:100](https://github.com/victusfate/ricochet/blob/main/src/types.ts#L100)

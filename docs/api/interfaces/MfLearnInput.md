@@ -6,7 +6,7 @@
 
 # Interface: MfLearnInput
 
-Defined in: [scoring.ts:103](https://github.com/victusfate/ricochet/blob/main/src/scoring.ts#L103)
+Defined in: [scoring.ts:104](https://github.com/victusfate/ricochet/blob/main/src/scoring.ts#L104)
 
 Inputs to one online SGD step of Biased Matrix Factorization.
 
@@ -16,7 +16,7 @@ Inputs to one online SGD step of Biased Matrix Factorization.
 
 > **globalMean**: `number`
 
-Defined in: [scoring.ts:107](https://github.com/victusfate/ricochet/blob/main/src/scoring.ts#L107)
+Defined in: [scoring.ts:108](https://github.com/victusfate/ricochet/blob/main/src/scoring.ts#L108)
 
 Current running mean of all observed ratings.
 
@@ -26,7 +26,7 @@ Current running mean of all observed ratings.
 
 > **item**: [`FactorRow`](FactorRow.md)
 
-Defined in: [scoring.ts:113](https://github.com/victusfate/ricochet/blob/main/src/scoring.ts#L113)
+Defined in: [scoring.ts:114](https://github.com/victusfate/ricochet/blob/main/src/scoring.ts#L114)
 
 Current item factor row.
 
@@ -36,7 +36,7 @@ Current item factor row.
 
 > **n**: `number`
 
-Defined in: [scoring.ts:109](https://github.com/victusfate/ricochet/blob/main/src/scoring.ts#L109)
+Defined in: [scoring.ts:110](https://github.com/victusfate/ricochet/blob/main/src/scoring.ts#L110)
 
 Number of ratings seen so far (before this one).
 
@@ -46,7 +46,7 @@ Number of ratings seen so far (before this one).
 
 > **params**: [`MfParams`](MfParams.md)
 
-Defined in: [scoring.ts:105](https://github.com/victusfate/ricochet/blob/main/src/scoring.ts#L105)
+Defined in: [scoring.ts:106](https://github.com/victusfate/ricochet/blob/main/src/scoring.ts#L106)
 
 Hyperparameters controlling learning rates, regularisation, and clipping.
 
@@ -56,7 +56,7 @@ Hyperparameters controlling learning rates, regularisation, and clipping.
 
 > **rating**: `number`
 
-Defined in: [scoring.ts:115](https://github.com/victusfate/ricochet/blob/main/src/scoring.ts#L115)
+Defined in: [scoring.ts:116](https://github.com/victusfate/ricochet/blob/main/src/scoring.ts#L116)
 
 Observed rating for this (user, item) pair (see `ACTION_RATING`).
 
@@ -66,6 +66,6 @@ Observed rating for this (user, item) pair (see `ACTION_RATING`).
 
 > **user**: [`FactorRow`](FactorRow.md)
 
-Defined in: [scoring.ts:111](https://github.com/victusfate/ricochet/blob/main/src/scoring.ts#L111)
+Defined in: [scoring.ts:112](https://github.com/victusfate/ricochet/blob/main/src/scoring.ts#L112)
 
 Current user factor row.

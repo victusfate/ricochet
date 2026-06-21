@@ -8,4 +8,4 @@
 
 > `const` **ARTICLES\_POST\_MAX**: `500` = `500`
 
-Defined in: [types.ts:39](https://github.com/victusfate/ricochet/blob/main/src/types.ts#L39)
+Defined in: [types.ts:42](https://github.com/victusfate/ricochet/blob/main/src/types.ts#L42)

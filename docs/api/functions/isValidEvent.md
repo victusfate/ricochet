@@ -8,7 +8,7 @@
 
 > **isValidEvent**(`e`): `e is InteractionEvent`
 
-Defined in: [validation.ts:23](https://github.com/victusfate/ricochet/blob/main/src/validation.ts#L23)
+Defined in: [validation.ts:24](https://github.com/victusfate/ricochet/blob/main/src/validation.ts#L24)
 
 Type guard — returns `true` when `e` is a structurally valid `InteractionEvent`.
 

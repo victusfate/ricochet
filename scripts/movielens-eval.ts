@@ -130,9 +130,7 @@ function ensureDataset(): { ratings: Rating[]; titles: Map<string, string>; sour
 }
 
 // ── Train / test split ────────────────────────────────────────────────────────
-
 function splitRandom(ratings: Rating[], trainRatio = 0.8, seed = 7): [Rating[], Rating[]] {
-  // Deterministic Fisher-Yates using a seeded LCG
   const arr = [...ratings];
   let s = seed;
   const rng = () => {
@@ -149,7 +147,6 @@ function splitRandom(ratings: Rating[], trainRatio = 0.8, seed = 7): [Rating[], 
 }
 
 // ── Model ─────────────────────────────────────────────────────────────────────
-
 interface Model {
   userFactors: Map<string, FactorRow>;
   itemFactors: Map<string, FactorRow>;
@@ -199,7 +196,6 @@ function predict(model: Model, userId: string, itemId: string): number {
 }
 
 // ── Metrics ───────────────────────────────────────────────────────────────────
-
 interface Metrics { rmse: number; mae: number; n: number }
 
 function evaluate(model: Model, testSet: Rating[]): Metrics {
@@ -241,7 +237,6 @@ function itemMeanMetrics(trainSet: Rating[], testSet: Rating[]): Metrics {
 }
 
 // ── Ranking metrics ───────────────────────────────────────────────────────────
-
 const TOP_K = 10;
 const LIKE_THRESHOLD    = 4;   // rating ≥ 4 → "liked"
 const DISLIKE_THRESHOLD = 2;   // rating ≤ 2 → "downvoted" in ricochet
@@ -359,7 +354,6 @@ function verifyFilter(
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-
 // quality-ok: magic-number — bar chart character width, display-only
 function bar(v: number, w = 24): string {
   const fill = Math.max(0, Math.min(w, Math.round(v * w)));
@@ -375,7 +369,6 @@ function improvementStr(baseline: number, model: number): string {
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
-
 async function main(): Promise<void> {
   // 1. Dataset
   const { ratings: all, titles, source } = ensureDataset();
@@ -395,6 +388,7 @@ async function main(): Promise<void> {
   // 2. Split
   // quality-ok: magic-number — standard 80/20 train-test split ratio
   const [trainSet, testSet] = splitRandom(all, 0.8);
+  // quality-ok: magic-number — display label matches the 0.8 split ratio above
   console.log(`Split:   ${trainSet.length.toLocaleString()} train (80%)  /  ${testSet.length.toLocaleString()} test (20%)\n`);
 
   // 3. Baselines

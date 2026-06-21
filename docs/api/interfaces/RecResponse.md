@@ -6,7 +6,7 @@
 
 # Interface: RecResponse
 
-Defined in: [types.ts:113](https://github.com/victusfate/ricochet/blob/main/src/types.ts#L113)
+Defined in: [types.ts:116](https://github.com/victusfate/ricochet/blob/main/src/types.ts#L116)
 
 ## Extends
 
@@ -18,7 +18,7 @@ Defined in: [types.ts:113](https://github.com/victusfate/ricochet/blob/main/src/
 
 > **articleIds**: `string`[]
 
-Defined in: [types.ts:86](https://github.com/victusfate/ricochet/blob/main/src/types.ts#L86)
+Defined in: [types.ts:89](https://github.com/victusfate/ricochet/blob/main/src/types.ts#L89)
 
 #### Inherited from
 
@@ -30,7 +30,7 @@ Defined in: [types.ts:86](https://github.com/victusfate/ricochet/blob/main/src/t
 
 > **cache**: [`RecCacheInfo`](RecCacheInfo.md)
 
-Defined in: [types.ts:115](https://github.com/victusfate/ricochet/blob/main/src/types.ts#L115)
+Defined in: [types.ts:118](https://github.com/victusfate/ricochet/blob/main/src/types.ts#L118)
 
 ***
 
@@ -38,7 +38,7 @@ Defined in: [types.ts:115](https://github.com/victusfate/ricochet/blob/main/src/
 
 > **diagnostics**: [`RecDiagnostics`](RecDiagnostics.md)
 
-Defined in: [types.ts:89](https://github.com/victusfate/ricochet/blob/main/src/types.ts#L89)
+Defined in: [types.ts:92](https://github.com/victusfate/ricochet/blob/main/src/types.ts#L92)
 
 #### Inherited from
 
@@ -50,7 +50,7 @@ Defined in: [types.ts:89](https://github.com/victusfate/ricochet/blob/main/src/t
 
 > **generatedAt**: `number`
 
-Defined in: [types.ts:87](https://github.com/victusfate/ricochet/blob/main/src/types.ts#L87)
+Defined in: [types.ts:90](https://github.com/victusfate/ricochet/blob/main/src/types.ts#L90)
 
 #### Inherited from
 
@@ -62,7 +62,7 @@ Defined in: [types.ts:87](https://github.com/victusfate/ricochet/blob/main/src/t
 
 > **scoredArticleIds**: [`ScoredArticle`](ScoredArticle.md)[]
 
-Defined in: [types.ts:88](https://github.com/victusfate/ricochet/blob/main/src/types.ts#L88)
+Defined in: [types.ts:91](https://github.com/victusfate/ricochet/blob/main/src/types.ts#L91)
 
 #### Inherited from
 
@@ -74,7 +74,7 @@ Defined in: [types.ts:88](https://github.com/victusfate/ricochet/blob/main/src/t
 
 > **timingMs**: [`RecTimingMs`](RecTimingMs.md)
 
-Defined in: [types.ts:116](https://github.com/victusfate/ricochet/blob/main/src/types.ts#L116)
+Defined in: [types.ts:119](https://github.com/victusfate/ricochet/blob/main/src/types.ts#L119)
 
 ***
 
@@ -82,4 +82,4 @@ Defined in: [types.ts:116](https://github.com/victusfate/ricochet/blob/main/src/
 
 > **trace**: [`RecTraceInfo`](RecTraceInfo.md)
 
-Defined in: [types.ts:114](https://github.com/victusfate/ricochet/blob/main/src/types.ts#L114)
+Defined in: [types.ts:117](https://github.com/victusfate/ricochet/blob/main/src/types.ts#L117)

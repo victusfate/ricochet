@@ -6,7 +6,7 @@
 
 # Interface: ArticleMetaRow
 
-Defined in: [types.ts:41](https://github.com/victusfate/ricochet/blob/main/src/types.ts#L41)
+Defined in: [types.ts:44](https://github.com/victusfate/ricochet/blob/main/src/types.ts#L44)
 
 ## Properties
 
@@ -14,7 +14,7 @@ Defined in: [types.ts:41](https://github.com/victusfate/ricochet/blob/main/src/t
 
 > **articleId**: `string`
 
-Defined in: [types.ts:42](https://github.com/victusfate/ricochet/blob/main/src/types.ts#L42)
+Defined in: [types.ts:45](https://github.com/victusfate/ricochet/blob/main/src/types.ts#L45)
 
 ***
 
@@ -22,7 +22,7 @@ Defined in: [types.ts:42](https://github.com/victusfate/ricochet/blob/main/src/t
 
 > **sourceId**: `string`
 
-Defined in: [types.ts:43](https://github.com/victusfate/ricochet/blob/main/src/types.ts#L43)
+Defined in: [types.ts:46](https://github.com/victusfate/ricochet/blob/main/src/types.ts#L46)
 
 ***
 
@@ -30,4 +30,4 @@ Defined in: [types.ts:43](https://github.com/victusfate/ricochet/blob/main/src/t
 
 > **topics**: `string`[]
 
-Defined in: [types.ts:44](https://github.com/victusfate/ricochet/blob/main/src/types.ts#L44)
+Defined in: [types.ts:47](https://github.com/victusfate/ricochet/blob/main/src/types.ts#L47)
