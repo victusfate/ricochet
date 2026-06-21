@@ -19,7 +19,7 @@ export function getTopCandidates(sql: SqlStorage, limit: number): string[] {
  * Takes up to PER_TOPIC_DIVERSITY articles per topic (breaking the popularity
  * feedback loop), then fills remaining slots with top-by-bias articles.
  */
-export function getDiverseCandidates(sql: SqlStorage, totalLimit: number): string[] {
+export function getDiverseCandidateIds(sql: SqlStorage, totalLimit: number): string[] {
   type Row = { article_id: string };
 
   // Top PER_TOPIC_DIVERSITY per topic using SQLite window functions.
@@ -53,7 +53,7 @@ export function getDiverseCandidates(sql: SqlStorage, totalLimit: number): strin
 }
 
 /** Returns the number of interactions recorded for a given user. */
-export function getInteractionCount(sql: SqlStorage, userId: string): number {
+export function getUserInteractionCount(sql: SqlStorage, userId: string): number {
   type Row = { cnt: number };
   const [row] = [...sql.exec<Row>(
     `SELECT COUNT(*) AS cnt FROM interactions WHERE user_id = ?`,

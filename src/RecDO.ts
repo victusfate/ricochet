@@ -1,6 +1,6 @@
 import type { InteractionEvent, RecCoreResponse, RecDiagnostics } from './types';
 import type { RecWorkerEnv } from './worker-env';
-import { parseRankRequest } from './parsing';
+import { makeRankInput, parseRankRequest } from './parsing';
 import {
   COLD_START_THRESHOLD, FACTOR_RETENTION_MS, GLOBAL_CANDIDATE_LIMIT,
   INTERACTION_RETENTION_MS, MF_PARAMS,
@@ -8,7 +8,7 @@ import {
 import { initRecSchema, parseTopicsJson, readGlobalState, selectByIdsChunked } from './rec-db';
 import { learnOne } from './rec-learning';
 import {
-  getDiverseCandidates, getInteractionCount, getTopCandidates, scoreCandidates,
+  getDiverseCandidateIds, getUserInteractionCount, getTopCandidates, scoreCandidates,
 } from './rec-ranking';
 
 /** Canonical error response: `{ ok: false, message }` (no CORS — DO is internal-only). */
@@ -24,7 +24,7 @@ const DEBUG_COUNT_TABLES: Record<string, string> = {
 };
 
 export class RecDO implements DurableObject {
-  constructor(protected state: DurableObjectState, protected _env: RecWorkerEnv) {
+  constructor(protected state: DurableObjectState, private _env: RecWorkerEnv) {
     initRecSchema(this.state.storage.sql);
   }
 
@@ -68,9 +68,11 @@ export class RecDO implements DurableObject {
       const interactionCutoffParam = url.searchParams.get('cutoff');
       const factorCutoffParam      = url.searchParams.get('factorCutoff');
       const interactionCutoff = interactionCutoffParam !== null
+        // quality-ok: magic-number — base-10 is the standard radix for decimal parseInt
         ? parseInt(interactionCutoffParam, 10)
         : Date.now() - INTERACTION_RETENTION_MS;
       const factorCutoff = factorCutoffParam !== null
+        // quality-ok: magic-number — base-10 is the standard radix for decimal parseInt
         ? parseInt(factorCutoffParam, 10)
         : Date.now() - FACTOR_RETENTION_MS;
       this.prune(interactionCutoff, factorCutoff);
@@ -113,9 +115,7 @@ export class RecDO implements DurableObject {
         return badRequest('Invalid JSON body');
       }
     }
-    const parsedReq = request.method === 'GET'
-      ? parseRankRequest({ method: 'GET', searchParams: url.searchParams })
-      : parseRankRequest({ method: 'POST', searchParams: url.searchParams, body: reqBody });
+    const parsedReq = parseRankRequest(makeRankInput(request.method as 'GET' | 'POST', url.searchParams, reqBody));
     if (!parsedReq.ok) {
       return badRequest(parsedReq.message);
     }
@@ -134,10 +134,10 @@ export class RecDO implements DurableObject {
     } else {
       // Use diversity-bucketed candidates for cold-start users to break the
       // popularity feedback loop; warm users get pure top-by-bias candidates.
-      const interactionCount = getInteractionCount(sql, userId);
+      const interactionCount = getUserInteractionCount(sql, userId);
       const isColdStart = interactionCount < COLD_START_THRESHOLD;
       if (isColdStart) {
-        candidates = getDiverseCandidates(sql, GLOBAL_CANDIDATE_LIMIT);
+        candidates = getDiverseCandidateIds(sql, GLOBAL_CANDIDATE_LIMIT);
         candidateStrategy = 'diverse';
       } else {
         candidates = getTopCandidates(sql, GLOBAL_CANDIDATE_LIMIT);

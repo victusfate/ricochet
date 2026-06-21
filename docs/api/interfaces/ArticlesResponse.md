@@ -1,4 +1,4 @@
-[**@victusfate/ricochet v2.1.0**](../README.md)
+[**@victusfate/ricochet v2.1.2**](../README.md)
 
 ***
 
@@ -6,7 +6,7 @@
 
 # Interface: ArticlesResponse
 
-Defined in: [types.ts:47](https://github.com/victusfate/ricochet/blob/main/src/types.ts#L47)
+Defined in: [types.ts:50](https://github.com/victusfate/ricochet/blob/main/src/types.ts#L50)
 
 ## Properties
 
@@ -14,4 +14,4 @@ Defined in: [types.ts:47](https://github.com/victusfate/ricochet/blob/main/src/t
 
 > **articles**: [`ArticleMetaRow`](ArticleMetaRow.md)[]
 
-Defined in: [types.ts:48](https://github.com/victusfate/ricochet/blob/main/src/types.ts#L48)
+Defined in: [types.ts:51](https://github.com/victusfate/ricochet/blob/main/src/types.ts#L51)

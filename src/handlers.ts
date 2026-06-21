@@ -3,7 +3,7 @@
 import type { ArticlesResponse, RecCacheStatus, RecCoreResponse, RecRankRequest } from './types';
 import { ARTICLES_GET_MAX, ARTICLES_POST_MAX } from './types';
 import type { RecWorkerEnv } from './worker-env';
-import { parseRankRequest } from './parsing';
+import { makeRankInput, parseRankRequest } from './parsing';
 import { isValidEvent, MAX_ID_LENGTH } from './validation';
 import { corsHeaders } from './cors';
 import { badRequest, json, readBoundedJson, tooManyRequests } from './http';
@@ -82,9 +82,7 @@ export async function handleRecommendations(
     if ('error' in recsBodyResult) return recsBodyResult.error;
     body = recsBodyResult.value as RecRankRequest | null;
   }
-  const parsed = request.method === 'GET'
-    ? parseRankRequest({ method: 'GET', searchParams: url.searchParams })
-    : parseRankRequest({ method: 'POST', searchParams: url.searchParams, body });
+  const parsed = parseRankRequest(makeRankInput(request.method as 'GET' | 'POST', url.searchParams, body));
   if (!parsed.ok) {
     return badRequest(request, env, parsed.message);
   }

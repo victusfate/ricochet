@@ -1,4 +1,4 @@
-[**@victusfate/ricochet v2.1.0**](../README.md)
+[**@victusfate/ricochet v2.1.2**](../README.md)
 
 ***
 
@@ -8,7 +8,7 @@
 
 > **mfLearnOne**(`input`): `object`
 
-Defined in: [scoring.ts:127](https://github.com/victusfate/ricochet/blob/main/src/scoring.ts#L127)
+Defined in: [scoring.ts:128](https://github.com/victusfate/ricochet/blob/main/src/scoring.ts#L128)
 
 Performs one online SGD step of Biased Matrix Factorization.
 

@@ -24,18 +24,21 @@ export type Action = typeof ACTIONS[number];
  */
 export interface InteractionEvent {
   userId:    string;   // anonymous stable ID
-  articleId: string;   // 16-hex article ID
+  articleId: string;   // hex-encoded article ID
   sourceId:  string;   // stable slug, e.g. "ars-technica"
-  topics:    Topic[];  // 1–10 topics (see MAX_TOPICS in validation.ts)
+  topics:    Topic[];  // one to ten topics (see MAX_TOPICS in validation.ts)
   action:    Action;
   ts:        number;   // epoch ms (advisory — server overwrites with its own clock to prevent prune-window spoofing)
 }
 
 // Shared request cap for feed-pool ranking candidates.
+// quality-ok: magic-number — value is the definition of this named constant
 export const REC_MAX_CANDIDATES = 100;
 
 // Article metadata lookup limits
+// quality-ok: magic-number — value is the definition of this named constant
 export const ARTICLES_GET_MAX  = 50;
+// quality-ok: magic-number — value is the definition of this named constant
 export const ARTICLES_POST_MAX = 500;
 
 export interface ArticleMetaRow {

@@ -1,4 +1,4 @@
-[**@victusfate/ricochet v2.1.0**](../README.md)
+[**@victusfate/ricochet v2.1.2**](../README.md)
 
 ***
 
@@ -6,7 +6,7 @@
 
 # Interface: RecTimingMs
 
-Defined in: [types.ts:106](https://github.com/victusfate/ricochet/blob/main/src/types.ts#L106)
+Defined in: [types.ts:109](https://github.com/victusfate/ricochet/blob/main/src/types.ts#L109)
 
 ## Properties
 
@@ -14,7 +14,7 @@ Defined in: [types.ts:106](https://github.com/victusfate/ricochet/blob/main/src/
 
 > **cacheLookup**: `number`
 
-Defined in: [types.ts:108](https://github.com/victusfate/ricochet/blob/main/src/types.ts#L108)
+Defined in: [types.ts:111](https://github.com/victusfate/ricochet/blob/main/src/types.ts#L111)
 
 ***
 
@@ -22,7 +22,7 @@ Defined in: [types.ts:108](https://github.com/victusfate/ricochet/blob/main/src/
 
 > **cacheWrite**: `number`
 
-Defined in: [types.ts:110](https://github.com/victusfate/ricochet/blob/main/src/types.ts#L110)
+Defined in: [types.ts:113](https://github.com/victusfate/ricochet/blob/main/src/types.ts#L113)
 
 ***
 
@@ -30,7 +30,7 @@ Defined in: [types.ts:110](https://github.com/victusfate/ricochet/blob/main/src/
 
 > **doFetch**: `number`
 
-Defined in: [types.ts:109](https://github.com/victusfate/ricochet/blob/main/src/types.ts#L109)
+Defined in: [types.ts:112](https://github.com/victusfate/ricochet/blob/main/src/types.ts#L112)
 
 ***
 
@@ -38,4 +38,4 @@ Defined in: [types.ts:109](https://github.com/victusfate/ricochet/blob/main/src/
 
 > **total**: `number`
 
-Defined in: [types.ts:107](https://github.com/victusfate/ricochet/blob/main/src/types.ts#L107)
+Defined in: [types.ts:110](https://github.com/victusfate/ricochet/blob/main/src/types.ts#L110)

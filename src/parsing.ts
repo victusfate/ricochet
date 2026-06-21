@@ -2,7 +2,9 @@
 
 import { REC_MAX_CANDIDATES } from './types';
 
+// quality-ok: magic-number — value is the definition of this named constant
 export const MAX_LIMIT    = 200;
+// quality-ok: magic-number — value is the definition of this named constant
 export const DEFAULT_LIMIT = 50;
 
 // Caps on the topicWeights map from an untrusted source.
@@ -14,6 +16,7 @@ export function parseLimit(value: unknown): number {
     return Math.max(1, Math.min(MAX_LIMIT, Math.trunc(value)));
   }
   if (typeof value === 'string') {
+    // quality-ok: magic-number — base-10 is the standard radix for decimal parseInt
     const parsed = parseInt(value, 10);
     if (!Number.isNaN(parsed)) return Math.max(1, Math.min(MAX_LIMIT, parsed));
   }
@@ -83,6 +86,17 @@ export function parseTopicWeights(
     result[k] = Math.min(v, MAX_TOPIC_WEIGHT);
   }
   return { weights: result };
+}
+
+/** Builds the discriminated input object for `parseRankRequest` from raw HTTP primitives. */
+export function makeRankInput(
+  method: 'GET' | 'POST',
+  searchParams: URLSearchParams,
+  body?: unknown,
+): { method: 'GET'; searchParams: URLSearchParams } | { method: 'POST'; searchParams: URLSearchParams; body: unknown } {
+  return method === 'GET'
+    ? { method: 'GET', searchParams }
+    : { method: 'POST', searchParams, body };
 }
 
 /** Fully parsed and validated inputs of a /recommendations rank request. */

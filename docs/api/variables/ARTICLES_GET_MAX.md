@@ -1,4 +1,4 @@
-[**@victusfate/ricochet v2.1.0**](../README.md)
+[**@victusfate/ricochet v2.1.2**](../README.md)
 
 ***
 
@@ -8,4 +8,4 @@
 
 > `const` **ARTICLES\_GET\_MAX**: `50` = `50`
 
-Defined in: [types.ts:38](https://github.com/victusfate/ricochet/blob/main/src/types.ts#L38)
+Defined in: [types.ts:40](https://github.com/victusfate/ricochet/blob/main/src/types.ts#L40)

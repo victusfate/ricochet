@@ -19,6 +19,11 @@ export function dbRowToFactorRow(row: FactorsDbRow): FactorRow {
   };
 }
 
+/** Unpacks a latent factor vector into positional SQLite bind params (v0..v9). */
+export function factorRowToBindParams(v: number[]): number[] {
+  return [v[0], v[1], v[2], v[3], v[4], v[5], v[6], v[7], v[8], v[9]];
+}
+
 /** Defensively decodes an `all_topics` JSON column; malformed or empty values yield []. */
 export function parseTopicsJson(raw: string): string[] {
   try { return JSON.parse(raw || '[]') as string[]; } catch { return []; }

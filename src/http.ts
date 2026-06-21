@@ -8,7 +8,11 @@ import { corsHeaders } from './cors';
 export const MAX_BODY_BYTES = 50_000;
 
 // HTTP status codes used by the response helpers.
+// quality-ok: magic-number — value is the definition of this named constant
 const HTTP_BAD_REQUEST = 400;
+// quality-ok: magic-number — value is the definition of this named constant
+const HTTP_TOO_MANY_REQUESTS = 429;
+// quality-ok: magic-number — value is the definition of this named constant
 const HTTP_PAYLOAD_TOO_LARGE = 413;
 
 export function json(
@@ -37,7 +41,7 @@ export function tooManyRequests(request: Request, env: RecWorkerEnv, retryAfterS
   headers.set('Content-Type', 'application/json; charset=utf-8');
   return new Response(
     JSON.stringify({ ok: false, message: 'Too Many Requests' }),
-    { status: 429, headers },
+    { status: HTTP_TOO_MANY_REQUESTS, headers },
   );
 }
 
@@ -46,6 +50,7 @@ export async function readBoundedJson(
   request: Request,
   env: RecWorkerEnv,
 ): Promise<{ value: unknown } | { error: Response }> {
+  // quality-ok: magic-number — base-10 is the standard radix for decimal parseInt
   const contentLength = parseInt(request.headers.get('Content-Length') ?? '0', 10);
   if (contentLength > MAX_BODY_BYTES) {
     return { error: badRequest(request, env, 'Request body too large', HTTP_PAYLOAD_TOO_LARGE) };

@@ -1,4 +1,4 @@
-[**@victusfate/ricochet v2.1.0**](../README.md)
+[**@victusfate/ricochet v2.1.2**](../README.md)
 
 ***
 
@@ -8,7 +8,7 @@
 
 > **parseTopicWeights**(`value`): `object`
 
-Defined in: [parsing.ts:64](https://github.com/victusfate/ricochet/blob/main/src/parsing.ts#L64)
+Defined in: [parsing.ts:67](https://github.com/victusfate/ricochet/blob/main/src/parsing.ts#L67)
 
 Parses and validates a topic-weights map from an untrusted source.
 Keys are topic names; values are non-negative multipliers capped at 10×.
