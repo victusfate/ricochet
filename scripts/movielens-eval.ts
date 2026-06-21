@@ -1,18 +1,9 @@
 #!/usr/bin/env tsx
 /**
- * Offline evaluation of ricochet's BiasedMF.
- *
- * Generates a synthetic dataset with known latent structure (K=10 factors,
- * 800 users, 1 200 items, 120 000 ratings), then:
- *   - Splits 80 / 20 train / test
- *   - Compares three predictors: global-mean, item-mean, BiasedMF
- *   - Verifies that the downvote-style filter correctly suppresses items
- *     the model predicts a user will dislike
- *
- * Because the data is generated from a known latent model, we can also
- * measure how well the learned factors recover the ground truth.
- *
- * Usage:  npm run eval:movielens
+ * Offline BiasedMF evaluation: synthetic dataset (K=10, 800 users, 1 200 items),
+ * 80/20 split. Compares global-mean / item-mean / BiasedMF, verifies downvote
+ * filter behaviour, and measures ranking quality (P/R@10, NDCG@10).
+ * Usage: npm run eval:movielens
  */
 
 import * as fs from 'fs';
@@ -43,6 +34,12 @@ const NOISE_SD  = 0.4;      // rating noise standard deviation
 const RATING_MIN = 1;
 const RATING_MAX = 5;
 
+const SEED           = 42;   // conventional reproducibility seed; value is arbitrary
+const TRAIN_EPOCHS   = 20;
+const N_CANDIDATES   = 500;  // candidate pool for ranking evaluation
+const SAMPLE_USERS   = 100;  // users sampled for P/R and filter checks
+const LABEL_TRUNCATE = 42;   // max chars for item title display
+
 function randn(): number {
   // Box-Muller
   return Math.sqrt(-2 * Math.log(Math.random() + 1e-10)) *
@@ -51,18 +48,16 @@ function randn(): number {
 
 interface Rating { userId: string; itemId: string; rating: number }
 
-function generateDataset(seed = 42): Rating[] {
-  // Deterministic seeding via a simple LCG on top of Math.random
-  // (we just fix the call count by seeding with a known sequence)
-  // Simple approach: use Array.from with known dimensions
-  const rng = (() => {
-    let s = seed;
-    return () => {
-      s = (s * 1664525 + 1013904223) & 0xffffffff;
-      return (s >>> 0) / 0xffffffff;
-    };
-  })();
+// Numerical Recipes LCG: multiplier 1664525, increment 1013904223, modulus 2^32.
+function makeLcg(seed: number): () => number {
+  // quality-ok: magic-number — LCG constants from Numerical Recipes; 0xffffffff is 2^32-1 bitmask
+  let s = seed; return () => { s = (s * 1664525 + 1013904223) & 0xffffffff; return (s >>> 0) / 0xffffffff; };
+}
+
+function generateDataset(seed = SEED): Rating[] {
+  const rng = makeLcg(seed);
   const grng = () => {
+    // quality-ok: magic-number — 1e-10 is a numerical stability epsilon preventing log(0)
     const u1 = rng() + 1e-10, u2 = rng();
     return Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
   };
@@ -129,7 +124,7 @@ function ensureDataset(): { ratings: Rating[]; titles: Map<string, string>; sour
   // Generate synthetic data
   process.stdout.write('Generating synthetic dataset… ');
   fs.mkdirSync(DATA_DIR, { recursive: true });
-  const ratings = generateDataset(42);
+  const ratings = generateDataset(SEED);
   fs.writeFileSync(SYNTH_FILE, ratings.map(r => `${r.userId}\t${r.itemId}\t${r.rating}`).join('\n'));
   console.log(`${ratings.length.toLocaleString()} ratings written to data/synthetic-ratings.tsv`);
   return { ratings, titles: new Map(), source: 'synthetic' };
@@ -138,13 +133,8 @@ function ensureDataset(): { ratings: Rating[]; titles: Map<string, string>; sour
 // ── Train / test split ────────────────────────────────────────────────────────
 
 function splitRandom(ratings: Rating[], trainRatio = 0.8, seed = 7): [Rating[], Rating[]] {
-  // Deterministic Fisher-Yates using a seeded LCG
   const arr = [...ratings];
-  let s = seed;
-  const rng = () => {
-    s = (s * 1664525 + 1013904223) & 0xffffffff;
-    return (s >>> 0) / 0xffffffff;
-  };
+  const rng = makeLcg(seed);
   for (let i = arr.length - 1; i > 0; i--) {
     const j = Math.floor(rng() * (i + 1));
     [arr[i], arr[j]] = [arr[j], arr[i]];
@@ -170,7 +160,7 @@ function createModel(params: MfParams): Model {
 function trainModel(trainSet: Rating[], epochs: number, params: MfParams): Model {
   const model = createModel(params);
   const shuffled = [...trainSet];
-  const rng = (() => { let s = 1; return () => { s = (s * 1664525 + 1013904223) & 0xffffffff; return (s >>> 0) / 0xffffffff; }; })();
+  const rng = makeLcg(1);
 
   for (let e = 0; e < epochs; e++) {
     // Fisher-Yates shuffle
@@ -255,7 +245,7 @@ function precisionRecallAt(
   testSet: Rating[],
   candidateItems: string[],
   k = TOP_K,
-  sampleUsers = 100,
+  sampleUsers = SAMPLE_USERS,
 ): { precision: number; recall: number; ndcg: number } {
   // Group test ratings by user
   const byUser = new Map<string, Map<string, number>>();
@@ -311,7 +301,7 @@ interface FilterStats {
 function verifyFilter(
   model:    Model,
   testSet:  Rating[],
-  sampleUsers = 100,
+  sampleUsers = SAMPLE_USERS,
 ): FilterStats {
   const byUser = new Map<string, Map<string, number>>();
   for (const r of testSet) {
@@ -369,13 +359,16 @@ function verifyFilter(
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+// quality-ok: magic-number — 24 is the display width of the ASCII bar; a visual default
 function bar(v: number, w = 24): string {
   const fill = Math.max(0, Math.min(w, Math.round(v * w)));
   return '[' + '█'.repeat(fill) + '░'.repeat(w - fill) + ']';
 }
+// quality-ok: magic-number — 100 converts 0–1 fraction to percentage
 function pct(v: number): string { return (v * 100).toFixed(1) + '%'; }
 function fmt(v: number, d = 4): string { return v.toFixed(d); }
 function improvementStr(baseline: number, model: number): string {
+  // quality-ok: magic-number — 100 converts 0–1 fraction to percentage
   const delta = (1 - model / baseline) * 100;
   return (delta >= 0 ? '+' : '') + delta.toFixed(1) + '%';
 }
@@ -400,6 +393,7 @@ async function main(): Promise<void> {
 
   // 2. Split
   const [trainSet, testSet] = splitRandom(all, 0.8);
+  // quality-ok: magic-number — 80/20 are display labels matching the 0.8 trainRatio default
   console.log(`Split:   ${trainSet.length.toLocaleString()} train (80%)  /  ${testSet.length.toLocaleString()} test (20%)\n`);
 
   // 3. Baselines
@@ -418,8 +412,8 @@ async function main(): Promise<void> {
     l2Latent:  0.02,
     sigmaInit: 0.1,
   };
-  console.log('─── Training BiasedMF (20 epochs) ────────────────────────────');
-  const model = trainModel(trainSet, 20, params);
+  console.log(`─── Training BiasedMF (${TRAIN_EPOCHS} epochs) ────────────────────────────`);
+  const model = trainModel(trainSet, TRAIN_EPOCHS, params);
   console.log(`  Learned global mean: ${fmt(model.globalMean, 3)}`);
   console.log(`  Users with factors:  ${model.userFactors.size}  |  Items: ${model.itemFactors.size}\n`);
 
@@ -448,9 +442,9 @@ async function main(): Promise<void> {
   console.log(`  Monotonicity (1★ < 2★ < 3★ < 4★ < 5★): ${monotone ? '✓ PASS' : '✗ FAIL'}\n`);
 
   // 7. Ranking quality
-  const candidateItems = [...items].slice(0, 500);
-  const ranking = precisionRecallAt(model, testSet, candidateItems, TOP_K, 100);
-  console.log(`─── Ranking quality  @${TOP_K}  (100 sample users, 500 candidates) ──`);
+  const candidateItems = [...items].slice(0, N_CANDIDATES);
+  const ranking = precisionRecallAt(model, testSet, candidateItems, TOP_K, SAMPLE_USERS);
+  console.log(`─── Ranking quality  @${TOP_K}  (${SAMPLE_USERS} sample users, ${N_CANDIDATES} candidates) ──`);
   console.log(`  Precision@${TOP_K}:  ${pct(ranking.precision)}  ${bar(ranking.precision)}`);
   console.log(`  Recall@${TOP_K}:     ${pct(ranking.recall)}  ${bar(ranking.recall)}`);
   console.log(`  NDCG@${TOP_K}:       ${pct(ranking.ndcg)}  ${bar(ranking.ndcg)}\n`);
@@ -458,7 +452,7 @@ async function main(): Promise<void> {
   // 8. Filter verification
   console.log('─── Filter verification ───────────────────────────────────────');
   console.log(`  Liked ≥${LIKE_THRESHOLD}★ vs disliked ≤${DISLIKE_THRESHOLD}★  |  cutoff = globalMean − 1.0 = ${fmt(model.globalMean - 1.0, 2)}\n`);
-  const fv = verifyFilter(model, testSet, 100);
+  const fv = verifyFilter(model, testSet, SAMPLE_USERS);
   console.log(`  Users checked: ${fv.usersChecked}`);
   console.log(`  Avg predicted score — liked items:    ${fmt(fv.avgPredLiked, 3)}  ${bar((fv.avgPredLiked - 1) / 4)}`);
   console.log(`  Avg predicted score — disliked items: ${fmt(fv.avgPredDisliked, 3)}  ${bar((fv.avgPredDisliked - 1) / 4)}`);
@@ -482,7 +476,7 @@ async function main(): Promise<void> {
     const userTest = testSet.filter(r => r.userId === spotUser);
     const liked    = userTest.filter(r => r.rating >= LIKE_THRESHOLD).slice(0, 5);
     const disliked = userTest.filter(r => r.rating <= DISLIKE_THRESHOLD).slice(0, 5);
-    const label = (id: string) => titles.get(id)?.substring(0, 42) ?? id;
+    const label = (id: string) => titles.get(id)?.substring(0, LABEL_TRUNCATE) ?? id;
     console.log(`─── Spot-check: user ${spotUser} ───────────────────────────────────────`);
     if (liked.length) {
       console.log(`  Items they liked (≥${LIKE_THRESHOLD}★) → predicted:`);

@@ -37,6 +37,7 @@ export interface MfParams {
  * `{ ...DEFAULT_MF_PARAMS, nFactors: 20 }`.
  */
 export const DEFAULT_MF_PARAMS: MfParams = {
+  // quality-ok: magic-number — value is the definition of this named constant object field
   nFactors:     10,
   lrBias:       0.05,
   lrLatent:     0.05,

@@ -113,6 +113,7 @@ export async function handleRecommendations(
       request,
       cacheKey,
       'hit',
+      // quality-ok: magic-number — 1000ms = 1s, standard ms-to-seconds conversion
       Math.max(0, Math.floor((now - cached.generatedAt) / 1000)),
       {
         total: now - requestStartedAt,

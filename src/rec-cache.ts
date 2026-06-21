@@ -5,6 +5,7 @@ import type { RecWorkerEnv } from './worker-env';
 import { corsHeaders } from './cors';
 import { json } from './http';
 
+// quality-ok: magic-number — value is the definition of this named constant
 export const CACHE_TTL_SECONDS = 300;
 // Byte lengths for SHA-256 hash prefixes used in cache keys and ETags.
 const ETAG_HASH_BYTES      = 16;
@@ -14,6 +15,7 @@ async function sha256HexPrefix(text: string, nBytes: number): Promise<string> {
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
   return Array.from(new Uint8Array(digest))
     .slice(0, nBytes)
+    // quality-ok: magic-number — 16 = hex base for toString; 2 = standard byte-to-hex width
     .map(b => b.toString(16).padStart(2, '0'))
     .join('');
 }

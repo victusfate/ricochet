@@ -1,6 +1,8 @@
 // Best-effort per-isolate IP rate limiting for the ricochet Worker.
 
+// quality-ok: magic-number — value is the definition of this named constant
 export const RATE_LIMIT_INTERACTIONS_MAX = 60;
+// quality-ok: magic-number — value is the definition of this named constant
 export const RATE_LIMIT_RECS_MAX = 30;
 const RATE_LIMIT_WINDOW_MS = 60_000;
 // Sweep stale buckets once the map grows past this, bounding memory after a traffic spike.
@@ -41,7 +43,8 @@ export function checkRateLimit(
   if (existing.count >= max) {
     return {
       limited: true,
-      retryAfterSeconds: Math.max(1, Math.ceil((existing.resetAt - now) / 1000)),
+      // quality-ok: magic-number — 1000ms = 1s, standard ms-to-seconds conversion
+    retryAfterSeconds: Math.max(1, Math.ceil((existing.resetAt - now) / 1000)),
     };
   }
   existing.count += 1;

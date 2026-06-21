@@ -23,6 +23,7 @@ export function json(
 }
 
 /** Canonical error response: `{ ok: false, message }` with CORS headers. */
+// quality-ok: magic-number — HTTP 400 Bad Request is the standard default for this helper
 export function badRequest(request: Request, env: RecWorkerEnv, message: string, status = 400): Response {
   return json({ ok: false, message }, request, env, { status });
 }
@@ -33,6 +34,7 @@ export function tooManyRequests(request: Request, env: RecWorkerEnv, retryAfterS
   headers.set('Content-Type', 'application/json; charset=utf-8');
   return new Response(
     JSON.stringify({ ok: false, message: 'Too Many Requests' }),
+    // quality-ok: magic-number — HTTP 429 Too Many Requests
     { status: 429, headers },
   );
 }
@@ -42,6 +44,7 @@ export async function readBoundedJson(
   request: Request,
   env: RecWorkerEnv,
 ): Promise<{ value: unknown } | { error: Response }> {
+  // quality-ok: magic-number — base-10 is the standard radix for decimal parseInt
   const contentLength = parseInt(request.headers.get('Content-Length') ?? '0', 10);
   if (contentLength > MAX_BODY_BYTES) {
     return { error: badRequest(request, env, 'Request body too large', 413) };

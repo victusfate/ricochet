@@ -68,9 +68,11 @@ export class RecDO implements DurableObject {
       const interactionCutoffParam = url.searchParams.get('cutoff');
       const factorCutoffParam      = url.searchParams.get('factorCutoff');
       const interactionCutoff = interactionCutoffParam !== null
+        // quality-ok: magic-number — base-10 is the standard radix for decimal parseInt
         ? parseInt(interactionCutoffParam, 10)
         : Date.now() - INTERACTION_RETENTION_MS;
       const factorCutoff = factorCutoffParam !== null
+        // quality-ok: magic-number — base-10 is the standard radix for decimal parseInt
         ? parseInt(factorCutoffParam, 10)
         : Date.now() - FACTOR_RETENTION_MS;
       this.prune(interactionCutoff, factorCutoff);
