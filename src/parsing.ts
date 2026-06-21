@@ -88,6 +88,17 @@ export function parseTopicWeights(
   return { weights: result };
 }
 
+/** Builds the discriminated input object for `parseRankRequest` from raw HTTP primitives. */
+export function makeRankInput(
+  method: 'GET' | 'POST',
+  searchParams: URLSearchParams,
+  body?: unknown,
+): { method: 'GET'; searchParams: URLSearchParams } | { method: 'POST'; searchParams: URLSearchParams; body: unknown } {
+  return method === 'GET'
+    ? { method: 'GET', searchParams }
+    : { method: 'POST', searchParams, body };
+}
+
 /** Fully parsed and validated inputs of a /recommendations rank request. */
 export interface RankRequest {
   limit: number;

@@ -3,7 +3,7 @@
 import type { InteractionEvent } from './types';
 import { ACTION_RATING, mfLearnOne, newFactorRow } from './scoring';
 import { MF_PARAMS } from './rec-config';
-import { dbRowToFactorRow, type FactorsDbRow } from './rec-db';
+import { dbRowToFactorRow, factorRowToBindParams, type FactorsDbRow } from './rec-db';
 
 /**
  * Learns from one event, updating factor tables and the passed-in global
@@ -61,7 +61,6 @@ export function learnOne(
   const V_UPDATE = 'v0=excluded.v0,v1=excluded.v1,v2=excluded.v2,v3=excluded.v3,v4=excluded.v4,'
                  + 'v5=excluded.v5,v6=excluded.v6,v7=excluded.v7,v8=excluded.v8,v9=excluded.v9';
 
-  const uv = res.user.v;
   sql.exec(
     `INSERT INTO user_factors
        (user_id,bias,v0,v1,v2,v3,v4,v5,v6,v7,v8,v9,updated_at)
@@ -70,11 +69,10 @@ export function learnOne(
        bias=excluded.bias,${V_UPDATE},
        updated_at=excluded.updated_at`,
     event.userId, res.user.bias,
-    uv[0], uv[1], uv[2], uv[3], uv[4], uv[5], uv[6], uv[7], uv[8], uv[9],
+    ...factorRowToBindParams(res.user.v),
     now,
   );
 
-  const iv = res.item.v;
   sql.exec(
     `INSERT INTO item_factors
        (article_id,bias,v0,v1,v2,v3,v4,v5,v6,v7,v8,v9,source_id,topic,all_topics,updated_at)
@@ -84,7 +82,7 @@ export function learnOne(
        source_id=excluded.source_id, topic=excluded.topic,
        all_topics=excluded.all_topics, updated_at=excluded.updated_at`,
     event.articleId, res.item.bias,
-    iv[0], iv[1], iv[2], iv[3], iv[4], iv[5], iv[6], iv[7], iv[8], iv[9],
+    ...factorRowToBindParams(res.item.v),
     event.sourceId, event.topics[0] ?? '', JSON.stringify(event.topics), now,
   );
 }
