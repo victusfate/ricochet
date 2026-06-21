@@ -24,7 +24,7 @@ const DEBUG_COUNT_TABLES: Record<string, string> = {
 };
 
 export class RecDO implements DurableObject {
-  constructor(private state: DurableObjectState, private _env: RecWorkerEnv) {
+  constructor(protected state: DurableObjectState, private _env: RecWorkerEnv) {
     initRecSchema(this.state.storage.sql);
   }
 
